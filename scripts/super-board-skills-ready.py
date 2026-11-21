@@ -365,11 +365,34 @@ class Inventory:
                     raise ValueError('enabled Claude plugin has no authoritative installPath')
                 directory = Path(path) / 'skills'
                 self.metadata_surfaces.append(str(directory))
+                target = self.exact if scope == 'user' else self.project_exact
                 if directory.is_dir():
                     for child in sorted(directory.iterdir()):
                         if NAME.fullmatch(child.name):
-                            target = self.exact if scope == 'user' else self.project_exact
                             target.setdefault(namespace + ':' + child.name, []).append(child / 'SKILL.md')
+                for child in self.plugin_manifest_skills(Path(path)):
+                    target.setdefault(namespace + ':' + child.name, []).append(child / 'SKILL.md')
+
+    @staticmethod
+    def plugin_manifest_skills(install):
+        # A plugin may nest its skills (mattpocock/skills: skills/<category>/<skill>) and list
+        # them in .claude-plugin/plugin.json "skills". Only folders inside the plugin with a
+        # SKILL.md count; an unreadable manifest adds nothing.
+        try:
+            entries = json.loads((install / '.claude-plugin/plugin.json').read_text()).get('skills')
+        except (OSError, ValueError, AttributeError):
+            return []
+        if not isinstance(entries, list):
+            return []
+        root = install.resolve()
+        found = []
+        for entry in entries:
+            if not isinstance(entry, str) or Path(entry).is_absolute():
+                continue
+            child = (install / entry).resolve()
+            if root in child.parents and NAME.fullmatch(child.name) and (child / 'SKILL.md').is_file():
+                found.append(child)
+        return found
 
     def resolve(self, name):
         namespace, separator, suffix = name.partition(':')

@@ -207,6 +207,32 @@ class Readiness(unittest.TestCase):
         entry.update(projectPath=str(self.root)); manifest.write_text(json.dumps(dict(plugins={'mattpocock-skills@official':[entry]})))
         self.run_cli()
 
+    def test_claude_plugin_manifest_skill_paths(self):
+        # mattpocock/skills nests skills by category and lists them in plugin.json.
+        self.full()
+        (self.root / '.claude/skills/code-review/SKILL.md').unlink()
+        plugin = self.home / 'plugins/mattpocock'
+        nested = plugin / 'skills/engineering/code-review/SKILL.md'; nested.parent.mkdir(parents=True); nested.write_text('nested')
+        outside = self.home / 'elsewhere/code-review/SKILL.md'; outside.parent.mkdir(parents=True); outside.write_text('outside')
+        (plugin / 'skills/engineering/empty').mkdir()
+        (plugin / '.claude-plugin').mkdir()
+        manifest_json = plugin / '.claude-plugin/plugin.json'
+        (self.home / '.claude').mkdir(exist_ok=True)
+        (self.home / '.claude/settings.json').write_text('{"enabledPlugins":{"mattpocock-skills@mattpocock":true}}')
+        (self.home / '.claude/plugins').mkdir()
+        (self.home / '.claude/plugins/installed_plugins.json').write_text(json.dumps(
+            dict(version=2, plugins={'mattpocock-skills@mattpocock': [dict(scope='user', installPath=str(plugin))]})))
+        def code_review(expected=0):
+            return next(e for e in self.run_cli(expected=expected)['entries'] if e['name'] == 'mattpocock-skills:code-review')
+        manifest_json.write_text(json.dumps({'name': 'mattpocock-skills', 'skills': ['./skills/engineering/code-review']}))
+        self.assertEqual(code_review()['resolved_path'], str(nested.resolve()))
+        for bad in (['../../elsewhere/code-review'], [str(outside.parent)], ['./skills/engineering/empty'], 'not-a-list', [7]):
+            with self.subTest(bad=bad):
+                manifest_json.write_text(json.dumps({'name': 'mattpocock-skills', 'skills': bad}))
+                self.assertEqual(code_review(10)['status'], 'missing', 'a path outside the plugin or without SKILL.md is no skill')
+        manifest_json.write_text('not json')
+        self.assertEqual(code_review(10)['status'], 'missing', 'an unreadable plugin.json adds nothing')
+
     def test_project_plugin_precedes_user_install_and_flattened_user_root(self):
         self.full()
         (self.root / '.claude/skills/code-review/SKILL.md').unlink()
