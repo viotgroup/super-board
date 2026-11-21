@@ -203,6 +203,15 @@ class GitHub:
             issues |= body_links(body, self.repo)
         return head, issues
 
+    def merged_at(self, number, head):
+        # A human merged the gated PR without changing it: the reviewed head is its final head.
+        # Returns the merge commit, else None. Ancestry on the base is the lane's to prove.
+        pr = self.read("api", f"repos/{self.repo}/pulls/{int(number)}")
+        if not pr.get("merged") or (pr.get("head") or {}).get("sha") != head:
+            return None
+        sha = pr.get("merge_commit_sha") or ""
+        return sha if SHA.fullmatch(sha) else None
+
     def check(self, number, head=None, scope=None, issue=None):
         current_head, issues = self.pr(number)
         if issue is not None and issue not in issues:
@@ -246,6 +255,11 @@ def main():
                 latest = max(blocks, key=lambda c: timestamp(c.get("created_at"))) if blocks else {}
                 request = parse_request(latest)
                 if request is None or request["repo"] != github.repo:
+                    continue
+                merge = github.merged_at(request["pr"], request["head"])
+                if merge:
+                    entry["mergedAtHead"] = {"pr": request["pr"], "head": request["head"], "merge": merge}
+                    entry["approvalWhy"] = "a human merged the PR at the reviewed head"
                     continue
                 result = github.check(request["pr"], head=request["head"], issue=entry["number"])
                 entry["needsYouDone"] = result["approved"]

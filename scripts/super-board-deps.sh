@@ -50,6 +50,8 @@
 # has the `needs-you` label: a human-only command is waiting (block-template.md).
 # `needsYouDone` — verified by super-board-approval.py: a trusted human replied
 # done after a pinned request for the current PR head. Labels are never authority.
+# `mergedAtHead` (only when set) — {pr, head, merge}: the pinned PR was merged by a
+# human at the reviewed head, so the card needs Done bookkeeping, not a review.
 # Saved --from payloads stay offline and cannot assert verified human approval.
 # A 🙋 card stays humanGated either way — only the resume path moves it.
 #

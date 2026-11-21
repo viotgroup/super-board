@@ -211,6 +211,12 @@ Repeat until a done condition or halt gate fires:
    `Ready` (below). Swept, resumed, approval-refresh and stranded cards are NOT in this pass's
    `cards`; they join the next wave.
 
+   **Human-merged cards.** A Blocked 🙋 card whose pinned PR a human merged at the
+   reviewed head comes back in `cards` with `lane: "merged"` and `merged: {pr, head, merge}`,
+   still in `Blocked`. Do not move it: the wave's merged lane proves the merge commit is on
+   the base, edits the report and PR blocks, closes the issue and moves the card to Done on
+   a cheap model, with no fresh review. A person need not move such a card to Review.
+
    **Stranded Building cards.** A card in Building with no assignee between
    waves has no live worker — a stopped or crashed wave left it mid-build. For
    each: find its branch (`git ls-remote --heads origin 'issue-<N>-*'`) and any

@@ -66,7 +66,9 @@
 # to keep the script offline.
 #
 # Stdout:
-#   { "cards": [ {"number":10,"status":"Review","title":"…","lane":"review","labels":[]} ],
+#   { "cards": [ {"number":10,"status":"Review","title":"…","lane":"review","labels":[]},
+#                {"number":12,"status":"Blocked","title":"…","lane":"merged","labels":[],
+#                 "merged":{"pr":30,"head":"<sha>","merge":"<sha>"}} ],
 #     "sweep": [ {"number":37,"title":"…","clearedBy":[32]} ],
 #     "resume": [ {"number":51,"title":"…"} ],
 #     "refreshApproval": [ {"number":52,"title":"…","why":"PR head changed after review"} ],
@@ -161,8 +163,15 @@ echo "$ITEMS" | jq --argjson cols "$COLUMNS" --argjson cap "$MAX_WORKERS" --argj
   # Ready: only the ones the graph says are actually free.
   | [ $all[] | select(.status == "Ready") | select(free(.number)) ] as $ready
 
+  # Blocked on a human merge that already happened at the reviewed head
+  # (super-board-approval.py → mergedAtHead). Lane "merged" only confirms the merge
+  # and does the Done bookkeeping on a cheap model; it never reviews again.
+  | [ $all[] | select(.status == "Blocked")
+      | dep(.number).mergedAtHead as $m | select($m != null)
+      | . + { lane: "merged", merged: $m } ] as $merged
+
   # Downstream-first, so work already begun finishes before new work starts.
-  | ($flight + $ready) as $picked
+  | ($merged + $flight + $ready) as $picked
   | { cards: (if $cap > 0 then ($picked | .[:$cap]) else $picked end),
 
       # Blocked cards whose blockers have all closed. The orchestrator moves

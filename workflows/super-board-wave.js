@@ -89,6 +89,7 @@ const LANE = {
   build:  { skill: 'super-build',  section: 'Builder',  phase: 'Build' },
   qa:     { skill: 'super-qa',     section: 'Tester',   phase: 'QA' },
   review: { skill: 'super-review', section: 'Reviewer', phase: 'Review' },
+  merged: { skill: 'super-review', section: 'Reviewer', phase: 'Review' },
 }
 
 // The merge-race guard used to live here, as a promise chain around the whole
@@ -172,6 +173,23 @@ const lanePrompt = (lane, card) => [
   `column = the column the card is in when you exit. detail = one line. Include prUrl/branch when they exist.`,
 ].join('\n')
 
+// A human merged the gated PR at the reviewed head (planner lane "merged"). On 2026-10-24
+// a full session-model Reviewer ran for each of 12 such cards only to confirm the merge, so
+// this lane does the bookkeeping alone, on a cheap model, and never reviews again.
+const mergedPrompt = (card) => [
+  READ_FAILURE,
+  `Issue #${card.number} ("${card.title}") is Blocked on a human merge that already happened: PR #${card.merged.pr} was merged at the reviewed head ${card.merged.head} as ${card.merged.merge}. Config: ${input.configPath}.`,
+  `Do only the Done bookkeeping of .claude/skills/super-board/references/run.md → Reviewer → "Merge protocol" steps 3-4. No review, no tests, no worktree.`,
+  `1. Prove it landed: git fetch origin <base_branch>, then git merge-base --is-ancestor ${card.merged.merge} origin/<base_branch>. Not an ancestor → change nothing and return status=failed with the reason.`,
+  `2. Edit the newest PR comment containing "<!-- super-review:report -->" in place to merged (next round, findings unchanged). Rewrite the PR status block (✅ Merged · <sha>) and append the history row with .claude/bin/super-board-pr-body.sh.`,
+  `3. Close issue #${card.number} if still open, remove its needs-you labels, move the card to Done.`,
+  SCRATCH(`issue-${card.number}-merged`),
+  BOARD_IO(),
+  `Comments: .claude/skills/super-board/references/writing-standard.md.`,
+  `Report via structured output: status=advanced, column=Done, detail = one line with the merge sha; or status=failed / halted with the reason.`,
+].join('\n')
+const mergedModel = (input.tier || 'medium') === 'low' ? 'haiku' : 'sonnet'
+
 // Run-tier model ladders. Card complexity indexes into the active ladder;
 // undefined = inherit the session model (the strongest available — e.g.
 // Fable/Opus). Cards entering past Ready (cls null, never classified)
@@ -195,7 +213,7 @@ const runLane = async (lane, card, model, history) => {
     history.push({ lane, ...result })
     return result
   }
-  const r = await agent(lanePrompt(lane, card), {
+  const r = await agent(lane === 'merged' ? mergedPrompt(card) : lanePrompt(lane, card), {
     label: `${lane}:#${card.number}`,
     phase: LANE[lane].phase,
     schema: STAGE_SCHEMA,
@@ -318,6 +336,10 @@ const results = await pipeline(
   async (prev, card) => {
     const history = []
     if (halted) return { number: card.number, history: [{ lane: 'none', status: 'halted', column: card.status, detail: 'run halted; preserve current work and resume explicitly' }] }
+    if (card.lane === 'merged' && card.merged) {
+      await runLane('merged', card, mergedModel, history)
+      return { number: card.number, history }
+    }
     const model = tierFor(prev && prev.cls)
     let at = card.status
 
