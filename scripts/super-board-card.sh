@@ -138,10 +138,24 @@ read_card() {  # $1 = issue; sets ITEM_ID STATUS_NAME
   node=$(echo "$out" | jq -c --argjson n "$NUMBER" --arg o "$OWNER" '
     [.data.repository.issueOrPullRequest.projectItems.nodes[]?
      | select(.project.number == $n and ((.project.owner.login // "") | ascii_downcase) == ($o | ascii_downcase))][0] // empty')
+  # Issue.projectItems can come back empty for a card that is on the board (seen
+  # with a user-owned board and an org repo). Before saying "not on project",
+  # look the card up in one board read and cache every item id it returns.
+  [ -n "$node" ] || node=$(board_card "$1") || return $?
   [ -n "$node" ] || { echo "#$1 is not on project $OWNER/$NUMBER" >&2; return 3; }
   ITEM_ID=$(echo "$node" | jq -r .id)
   STATUS_NAME=$(echo "$node" | jq -r '.fieldValueByName.name // ""')
   cache_put '.items[$k] = $v' --arg k "$1" --arg v "$ITEM_ID"
+}
+
+board_card() {  # $1 = issue; prints {id, fieldValueByName:{name}} or nothing — ~1 point per 100 cards
+  local all
+  all=$(items) || return $?
+  all=$(echo "$all" | jq -c --arg r "$REPO" '[.items[]
+    | select(.content.number != null and ((.content.repository // "") | ascii_downcase) == ($r | ascii_downcase))]')
+  cache_put '.items += $m' --argjson m "$(echo "$all" | jq -c 'map({(.content.number | tostring): .id}) | add // {}')"
+  echo "$all" | jq -c --argjson n "$1" '[.[] | select(.content.number == $n)
+    | {id, fieldValueByName: {name: (.status // null)}}][0] // empty'
 }
 
 item_id() {  # $1 = issue
