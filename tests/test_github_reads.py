@@ -166,6 +166,40 @@ dispatch_lane build 7
         self.assertEqual(result.returncode, 79)
         self.assertEqual(self.log.read_text(), '3')
 
+    def test_caller_mistakes_fail_that_call_not_the_run(self):
+        # 2026-10-23..24 (ECMS): each of these halted every lane, though none reached a broken GitHub.
+        cases = [
+            ('gh refused its own flags', 'comments',
+             {'rc': 1, 'err': 'the `--slurp` option is not supported with `--jq` or `--template`'}, 'gh rejected the command line'),
+            ('unknown --json field', 'json',
+             {'rc': 1, 'err': 'Unknown JSON field: "bogus"\nAvailable fields:\n  body'}, 'gh rejected the command line'),
+            ('pr view on an issue number', 'json',
+             {'rc': 1, 'err': "GraphQL: Could not resolve to a PullRequest with the number of 202. (repository.pullRequest)"},
+             'use issue view for an issue, pr view for a PR'),
+            ('a -F value GitHub cannot coerce', 'json',
+             {'rc': 1, 'err': 'gh: Variable $issue of type Int! was provided invalid value "114 177"'},
+             'one value per -F variable'),
+        ]
+        for name, kind, response, hint in cases:
+            with self.subTest(name):
+                self.log.unlink(missing_ok=True)
+                r = self.read([response], kind)
+                self.assertEqual(r.returncode, 64, r.stderr)
+                self.assertIn('this call failed, the run continues', r.stderr)
+                self.assertIn(hint, r.stderr)
+                self.assertEqual(self.log.read_text(), '1', 'a caller mistake is never retried')
+                self.assertFalse(self.halt.exists(), 'a caller mistake must not halt other lanes')
+        # A missing repository can mean lost access: still a halt.
+        r = self.read([{'rc': 1, 'err': "GraphQL: Could not resolve to a Repository with the name 'x/y'. (repository)"}])
+        self.assertEqual(r.returncode, 79, r.stderr)
+        self.halt.unlink()
+        # Fixed-command scripts keep halting on every one of them.
+        self.env['SB_GITHUB_READ_STRICT'] = '1'
+        for name, kind, response, _ in cases:
+            with self.subTest(f'strict: {name}'):
+                self.halt.unlink(missing_ok=True)
+                self.assertEqual(self.read([response], kind).returncode, 79)
+
     def test_diff_without_meta_fails_that_call_without_reading(self):
         r = self.read([{'out': 'diff --git a/a b/a\n'}], 'diff', ['pr', 'diff', '1'])
         self.assertEqual(r.returncode, 64, r.stderr)
