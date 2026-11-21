@@ -160,14 +160,15 @@ const agent = async (prompt, opts) => {
   prompts[opts.label] = prompt
   return { status: 'advanced', column: 'next' }
 }
+const parallel = (thunks) => Promise.all(thunks.map((f) => f()))
 const pipeline = async (items, ...stages) => Promise.all(items.map(async item => {
   let value = item
   for (const stage of stages) value = await stage(value, item)
   return value
 }))
-new AsyncFunction('args','agent','pipeline','log',src)(
+new AsyncFunction('args','agent','pipeline','parallel','log',src)(
   {configPath:'fixture.json',cards:[{number:7,status:'Ready',title:'fixture'}]},
-  agent,pipeline,()=>{}).then(()=>console.log(JSON.stringify(prompts)))
+  agent,pipeline,parallel,()=>{}).then(()=>console.log(JSON.stringify(prompts)))
 """
         prompts = json.loads(self.run_cmd("node", "-e", js,
                                           str(PACK / "workflows/super-board-wave.js")).stdout)
