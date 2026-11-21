@@ -7,7 +7,8 @@ config, the PR metadata and the diff; no network, no side effects.
     super-board-merge-policy.py --config <cfg.json> --meta <pr.json> --diff <file>
 
 `--meta` is `gh pr view --json labels,files,additions,deletions,body`.
-`--diff` is `gh pr diff` (only ADDED lines are searched for keywords).
+`--diff` is `gh pr diff` (only ADDED lines are searched for keywords; in a
+migration file, lines inside a `down()`/`downgrade()` rollback are skipped).
 
 Stdout, one JSON object:
     { "human":      [ {"category": "money", "why": "path src/billing/charge.ts"} ],
@@ -30,12 +31,15 @@ Rules, from references/config-schema.json → merge_policy / migrations:
 - merge_policy.auto_max_lines (default 400; 0 = no cap): changed lines
   (additions + deletions) above it → human ("big PR — please review"). Files
   matching merge_policy.size_exclude (default: lockfiles, generated output,
-  snapshots) and migration files (migrations.globs) do not count; migration
+  snapshots, QA evidence under docs/super-board/runs/) and migration files (migrations.globs) do not count; migration
   lines are reported separately. Per-file counts come from `files[].additions/
   deletions`; without them the PR totals are used.
 - merge_policy.always_human.<category>: any label, path glob or added-line
   keyword match → human. Categories ship as money, auth, schema; setting
-  always_human replaces them all (`{}` turns category gating off).
+  always_human replaces them all (`{}` turns category gating off). In migration
+  files, keywords inside a `down()`/`downgrade()` rollback are ignored, and
+  `delete from`/`truncate` outside it → schema (while the schema category is on).
+  Schema keywords are not searched in test files (TEST_PATHS).
 - migrations: a changed path matching migrations.globs makes this a migration
   PR. Every env in allowed_envs with a command runs (a command of "-" means the
   deploy pipeline applies it: nothing to run). target_env not in allowed_envs, or
@@ -84,6 +88,14 @@ DEFAULT_SIZE_EXCLUDE = [
     "**/*.min.js", "**/*.min.css", "**/*.map", "**/*.pb.go", "**/*_pb2.py",
     # snapshots
     "**/__snapshots__/**", "**/*.snap",
+    # QA evidence the pipeline itself commits (reports, logs, screenshots)
+    "docs/super-board/runs/**",
+]
+# Test code never runs against a real database, so its DROP/TRUNCATE teardown is
+# not a destructive change; these paths are skipped by the schema keyword scan.
+TEST_PATHS = [
+    "**/*.spec.*", "**/*.test.*", "**/*-spec.*", "**/test/**", "**/tests/**",
+    "**/e2e/**", "**/__tests__/**", "test/**", "tests/**", "e2e/**",
 ]
 
 
@@ -110,6 +122,56 @@ def matches(path: str, globs) -> str | None:
     return None
 
 
+# Rollback bodies: `down(` (TypeORM, Knex) and `downgrade(` (Alembic) undo an
+# additive `up()` with DROP lines, which is not a destructive change.
+# Only method declarations match, so a comment mentioning down() inside up()
+# cannot hide the rest of up().
+_DECL = r"^\s*(?:(?:public|private|protected|async|static|def|exports\.)\s*)*"
+DOWN_RE = re.compile(_DECL + r"(?:down|downgrade)\s*(?:=\s*(?:async\s*)?(?:function\s*)?)?\(")
+UP_RE = re.compile(_DECL + r"(?:up|upgrade)\s*(?:=\s*(?:async\s*)?(?:function\s*)?)?\(")
+
+
+# Data loss a forward migration can do without any DROP keyword. Searched only in
+# migration files, outside rollback methods, so app code that deletes rows does
+# not trip the schema gate.
+MIGRATION_DATA_LOSS = ["delete from", "truncate "]
+
+
+def keyword_lines(diff: str, mig_files) -> tuple[str, str, str]:
+    """Added lines to search for keywords, lowercased:
+    (all files, all files but tests, migrations only).
+
+    Inside a migration file, lines in a rollback method are skipped. The method
+    is tracked from `up(`/`down(` lines and from git's hunk-header function
+    context; a hunk with no known method is searched (fail safe to "human").
+    """
+    out, app_out, mig_out, path, in_down = [], [], [], None, False
+    for l in diff.splitlines():
+        if l.startswith("+++"):
+            path = l[6:] if l.startswith("+++ b/") else None
+            in_down = False
+            continue
+        if l.startswith("---"):
+            continue
+        is_mig = path in mig_files
+        if l.startswith("@@"):
+            ctx = l.split("@@", 2)[-1].lstrip(" ")
+            in_down = bool(is_mig and DOWN_RE.search(ctx) and not UP_RE.search(ctx))
+            continue
+        if is_mig and not l.startswith("-"):
+            if DOWN_RE.search(l[1:]):
+                in_down = True
+            elif UP_RE.search(l[1:]):
+                in_down = False
+        if l.startswith("+") and not (is_mig and in_down):
+            out.append(l[1:])
+            if is_mig:
+                mig_out.append(l[1:])
+            if is_mig or not matches(path or "", TEST_PATHS):
+                app_out.append(l[1:])
+    return tuple("\n".join(x).lower() for x in (out, app_out, mig_out))
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
@@ -128,8 +190,6 @@ def main() -> int:
 
     labels = {(l.get("name") or "").lower() for l in meta.get("labels") or []}
     paths = [f.get("path") or "" for f in meta.get("files") or []]
-    added = "\n".join(l[1:] for l in diff.splitlines()
-                      if l.startswith("+") and not l.startswith("+++")).lower()
     body = meta.get("body") or ""
 
     policy = cfg.get("merge_policy") or {}
@@ -143,6 +203,7 @@ def main() -> int:
     mig = cfg.get("migrations") or {}
     globs = mig.get("globs") or DEFAULT_MIGRATION_GLOBS
     mig_files = [p for p in paths if matches(p, globs)]
+    added, app_added, mig_added = keyword_lines(diff, mig_files)
 
     cap = policy.get("auto_max_lines")
     cap = DEFAULT_AUTO_MAX_LINES if cap is None else int(cap)
@@ -172,10 +233,14 @@ def main() -> int:
             hit = next((f"path {p} (matches {g})" for p in paths
                         for g in [matches(p, rule.get("paths"))] if g), None)
         if not hit:
+            scan = app_added if cat == "schema" else added
             hit = next((f"keyword \"{k}\" in an added line" for k in rule.get("keywords") or []
-                        if k.lower() in added), None)
+                        if k.lower() in scan), None)
         if hit:
             human.append({"category": cat, "why": hit})
+    loss = next((k for k in MIGRATION_DATA_LOSS if k in mig_added), None)
+    if loss and "schema" in always and not any(h["category"] == "schema" for h in human):
+        human.append({"category": "schema", "why": f"keyword \"{loss.strip()}\" in a migration (outside down())"})
 
     run, needs = [], []
     if mig_files:
