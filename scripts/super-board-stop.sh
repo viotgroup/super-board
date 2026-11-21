@@ -238,6 +238,8 @@ if [ -d "$INFLIGHT_DIR" ] && [ -n "$(ls -A "$INFLIGHT_DIR" 2>/dev/null)" ]; then
   log "🧽 cleared $INFLIGHT_DIR"
 fi
 [ -z "$CODEX_WAVE_PID" ] || rm -f "$INFLIGHT_DIR/workflow-wave.lock" "$CODEX_WAVE_MARKER"
+# Let the machine sleep again (super-board-awake.sh; no-op when nothing is held).
+bash "$(dirname "${BASH_SOURCE[0]}")/super-board-awake.sh" stop || true
 
 # 6. Summary.
 DISP_COUNT=$(echo "$DISPATCHER_PIDS" | tr ' ' '\n' | grep -c . || true)

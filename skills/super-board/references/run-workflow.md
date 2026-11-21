@@ -110,7 +110,8 @@ Run the same preconditions as `run.md` §Preconditions, minus PID checks:
       in `.claude/super-board/codex-wave.pid` (plain numeric PID) with `kill -0` plus its process command.
       Only if neither backend has an active wave and no repo-local Codex lane
       remains is the marker stale from a crashed run — replace it.
-      Remove the lock when the run ends or stops. The legacy dispatcher
+      Remove the lock when the run ends or stops, and run
+      `bash .claude/bin/super-board-awake.sh stop` then. The legacy dispatcher
       refuses to start (and halts mid-run) while it exists.
    b. THEN verify no legacy run is active: BOTH
       `pgrep -f 'super-board-run.sh'` (the legacy dispatcher idles between
@@ -135,7 +136,12 @@ Run the same preconditions as `run.md` §Preconditions, minus PID checks:
 
 Repeat until a done condition or halt gate fires:
 
-1. **Rate guard** — `sb_gh_guard_check 200` (super-board-gh-guard.sh; `gh api rate_limit` misreports GraphQL); if GraphQL remaining < 200, wait for
+1. **Host guard** — `gh auth status` must exit 0; otherwise halt with "Re-auth:
+   `gh auth login`, then `/super-board run <slug>`" and launch nothing (a wave started
+   on an expired login returns "agent returned no result" for every lane). Then
+   `bash .claude/bin/super-board-awake.sh start`: on macOS it holds off idle sleep for
+   4h from each wave start (2026-10-24: a laptop slept mid-wave and lost both lanes).
+   **Rate guard** — `sb_gh_guard_check 200` (super-board-gh-guard.sh; `gh api rate_limit` misreports GraphQL); if GraphQL remaining < 200, wait for
    reset (same thresholds as run.md). A failing `gh` call outranks the reading:
    right after a reset the REST reading has shown 4999 while calls still failed.
    With GraphQL dry, the orchestrator's own writes go over REST, a separate
@@ -352,6 +358,7 @@ don't stall on prompts:
     "Bash(bash .claude/bin/super-board-codex-lane.sh:*)",
     "Bash(bash .claude/bin/super-board-codex-wave.sh:*)",
     "Bash(bash .claude/bin/super-board-host.sh:*)",
+    "Bash(bash .claude/bin/super-board-awake.sh:*)", "Bash(gh auth status:*)",
     "Bash(bash .claude/bin/super-board-pr-body.sh:*)", "Bash(gh pr edit:*)",
     "Bash(bash .claude/bin/super-board-evidence.sh:*)",
     "Bash(bash .claude/bin/super-board-stop.sh:*)",
