@@ -49,6 +49,9 @@ const base = { configPath: 'c.json' }
   ;/reclass any Over-engineering Blocker to Should fix/.test(rp) || fail('review prompt must re-apply the Over-engineering rule after the truth-check')
   ;['build:#7', 'qa:#7'].forEach((l) => a.prompts[l].includes('ponytail-review') && fail(`${l} must not get the review pass`))
   ;['build:#7', 'qa:#7'].forEach((l) => a.prompts[l].includes('super-review:report') && fail(`${l} must not get review memory`))
+  // 1a — every lane writes temp files only under its own scratchpad folder.
+  ;['build', 'qa', 'review'].forEach((lane) => a.prompts[`${lane}:#7`].includes(`<scratchpad>/issue-7-${lane}/`) || fail(`${lane} lane needs its own scratchpad folder`))
+  ;['Code-grounder', 'Historian'].forEach((r) => a.prompts[`truth:${r}:#7`].includes(`<scratchpad>/issue-7-truth-${r.toLowerCase()}/`) || fail(`truth:${r} needs its own scratchpad folder`))
   // 1b — ui-refine-loop is standalone: no lane prompt mentions it.
   ;['build:#7', 'qa:#7', 'review:#7'].forEach((l) => /ui-refine-loop|qa-hook/.test(a.prompts[l]) && fail(`${l} must not trigger ui-refine-loop`))
 
