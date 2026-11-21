@@ -237,7 +237,7 @@ const runTruth = async (card) => {
       .then((r) => ({ role, ...(r || { skipped: false, confidence: null, detail: 'agent returned no result' }) }))))
   return out.filter(Boolean)
 }
-const truthLines = (truth) => !truth ? [] : truth.every((t) => t.skipped)
+const truthLines = (truth) => !truth || !truth.length ? [] : truth.every((t) => t.skipped)
   ? [`Truth-check: both workflow sub-agents skipped it under truth_gate (${truth[0].detail}). Do not run it yourself.`]
   : [
     `Truth-check already ran in this workflow as two independent sub-agents. Do NOT run it inline or spawn your own;`,

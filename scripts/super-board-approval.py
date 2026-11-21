@@ -206,10 +206,13 @@ class GitHub:
     def merged_at(self, number, head):
         # A human merged the gated PR without changing it: the reviewed head is its final head.
         # Returns the merge commit, else None. Ancestry on the base is the lane's to prove.
-        pr = self.read("api", f"repos/{self.repo}/pulls/{int(number)}")
-        if not pr.get("merged") or (pr.get("head") or {}).get("sha") != head:
+        # pr view, not REST: a number that names no PR fails this call only (wrong_number),
+        # where a REST 404 would halt the whole planner.
+        pr = self.read("pr", "view", str(int(number)), "-R", self.repo,
+                       "--json", "state,headRefOid,mergeCommit")
+        if pr.get("state") != "MERGED" or pr.get("headRefOid") != head:
             return None
-        sha = pr.get("merge_commit_sha") or ""
+        sha = (pr.get("mergeCommit") or {}).get("oid") or ""
         return sha if SHA.fullmatch(sha) else None
 
     def check(self, number, head=None, scope=None, issue=None):
