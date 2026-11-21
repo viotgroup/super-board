@@ -9,7 +9,8 @@ Mutations never enter this retry helper. For the agent-facing kinds in FORMS, a
 payload that fails its shape on every attempt is the caller's malformed read, not
 an outage: that call exits 64 with the valid form and the run keeps going. So does
 a command line gh itself refuses (e.g. --slurp with --jq, an unknown --json field), and
-a number that names no PR or issue (pr view on an issue number): neither is an outage.
+a number that names no PR or issue (pr view on an issue number), and a -F value GitHub
+cannot coerce to its GraphQL type (issue="114 177" for Int!): none is an outage.
 Scripts whose commands are fixed set SB_GITHUB_READ_STRICT=1 to keep halting on both.
 """
 from __future__ import annotations
@@ -135,6 +136,12 @@ def wrong_number(text):
     # repository or a REST 404 can mean lost access, so those still halt via permanent_error.
     return re.search(r'Could not resolve to (?:a|an) (?:PullRequest|Issue|issue or pull request) '
                      r'with the number of', text, re.I) is not None
+
+
+def bad_variable(text):
+    # GitHub could not coerce a -F value to its GraphQL type (issue="114 177" for Int! on
+    # 2026-10-23): the caller passed a malformed value, so retrying it can never succeed.
+    return re.search(r'Variable \$\w+ of type \S+ was provided invalid value', text) is not None
 
 
 def usage_error(text):
@@ -360,6 +367,10 @@ def read(args, kind='json', meta=None, recovering=False):
                 refusal = re.search(r'Could not resolve to[^.\n]*', diagnostic)[0]
                 raise ValueError(f'{refusal}; this call failed, the run continues. '
                                  f'Check the number, and use issue view for an issue, pr view for a PR.')
+            if bad_variable(diagnostic) and not os.environ.get('SB_GITHUB_READ_STRICT'):
+                refusal = re.search(r'Variable \$\w+ of type \S+ was provided invalid value', diagnostic)[0]
+                raise ValueError(f'{refusal}; this call failed, the run continues. '
+                                 f'Pass one value per -F variable (one issue number per query).')
             if permanent_error(diagnostic):
                 halt('GitHub rejected a required read (query, authentication, or permission error); fix it before restarting', attempt, operation)
             if result.returncode and usage_error(result.stderr):
