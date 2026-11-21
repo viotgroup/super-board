@@ -51,6 +51,7 @@ Ported from `viotgroup/ecms` (each commit names its ECMS source):
   on a re-review that will bounce anyway.
 - Board: cards missing from `Issue.projectItems` are found on the board; human-merged
   cards close without a fresh review; a person can release a 🙋 card by moving it to Ready.
+- Skills: QA's `testing-strategy` (no published source) falls back to a coverage table.
 - Host: each wave checks `gh auth status` and keeps a macOS host awake.
 - Lanes: each lane gets its own scratchpad folder; builders stamp migrations with
   `Date.now()`.
