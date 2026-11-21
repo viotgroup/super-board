@@ -7,8 +7,9 @@ The halt file is shared through the main checkout, including linked worktrees.
 Only an explicit new run clears it with --resume after preserving the old reason.
 Mutations never enter this retry helper. For the agent-facing kinds in FORMS, a
 payload that fails its shape on every attempt is the caller's malformed read, not
-an outage: that call exits 64 with the valid form and the run keeps going. Scripts
-whose commands are fixed set SB_GITHUB_READ_STRICT=1 to keep halting on it.
+an outage: that call exits 64 with the valid form and the run keeps going. So does
+a command line gh itself refuses (e.g. --slurp with --jq): it never reached GitHub.
+Scripts whose commands are fixed set SB_GITHUB_READ_STRICT=1 to keep halting on both.
 """
 from __future__ import annotations
 
@@ -126,6 +127,12 @@ def permanent_error(text):
                      r'GRAPHQL_VALIDATION_FAILED|undefinedField|variableRequiresValidType|'
                      r'HTTP 40[134]|Bad credentials|requires authentication|Resource not accessible|'
                      r'Could not resolve to (?:a|an) |missing required scopes', text, re.I) is not None
+
+
+def usage_error(text):
+    # gh refused its own arguments before any request: the caller's command, not an outage.
+    return re.search(r'not supported with|unknown (?:shorthand )?flag|flag needs an argument|'
+                     r'accepts (?:at most )?\d+ arg|required flag\(s\)|invalid argument', text, re.I) is not None
 
 
 def require(condition, why):
@@ -342,6 +349,13 @@ def read(args, kind='json', meta=None, recovering=False):
                     pass
             if permanent_error(diagnostic):
                 halt('GitHub rejected a required read (query, authentication, or permission error); fix it before restarting', attempt, operation)
+            if result.returncode and usage_error(result.stderr):
+                refusal = result.stderr.strip().splitlines()[0]  # drop gh's usage dump
+                if os.environ.get('SB_GITHUB_READ_STRICT'):
+                    halt(f'gh rejected the command line: {refusal}', attempt, operation)
+                form = f' Valid form: --kind {kind} -- {FORMS[kind]}' if kind in FORMS else ''
+                raise ValueError(f'gh rejected the command line ({refusal}); '
+                                 f'this call failed, the run continues.{form}')
             if result.returncode:
                 shape_only = False
                 status = re.search(r'HTTP [0-9]{3}', result.stderr)
