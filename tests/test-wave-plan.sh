@@ -153,4 +153,17 @@ OUT19=$("$PLAN" --config <(echo "$NOCAP") --items "$ITEMS" --deps <(jq '.["21"].
 echo "$OUT19" | jq -e '[.refreshApproval[].number] == [21]' >/dev/null || fail "stale approval must get a fresh request"
 echo "$OUT19" | jq -e '[.resume[].number, .cards[].number, .sweep[].number] | index(21) == null' >/dev/null || fail "refresh is not permission to merge or build"
 
-echo "PASS: test-wave-plan.sh (19 scenarios)"
+# 20 — a person dragged a 🙋 card from Blocked to Ready: its `blocked-by: -` line
+#      (humanGated) no longer holds it. An open blocker still does, and the same
+#      gated card left in Blocked is never swept.
+GATED='{"humanGated":true,"runnable":false,"needsYou":true,"needsYouDone":false}'
+OUT20=$("$PLAN" --config <(echo "$NOCAP") --items "$ITEMS" --deps <(jq --argjson g "$GATED" '.["12"] += $g' "$DEPS"))
+echo "$OUT20" | jq -e '[.cards[].number] | index(12) != null' >/dev/null \
+  || fail "a humanGated Ready card with no open blocker must be dispatched: $OUT20"
+OUT20b=$("$PLAN" --config <(echo "$NOCAP") --items "$ITEMS" --deps <(jq --argjson g "$GATED" '.["14"] += $g' "$DEPS"))
+echo "$OUT20b" | jq -e '[.cards[].number] | index(14) == null' >/dev/null \
+  || fail "a humanGated Ready card with an open blocker must still wait: $OUT20b"
+echo "$OUT" | jq -e '[.sweep[].number, .cards[].number] | index(21) == null' >/dev/null \
+  || fail "a humanGated card still in Blocked must not be swept or dispatched"
+
+echo "PASS: test-wave-plan.sh (20 scenarios)"
