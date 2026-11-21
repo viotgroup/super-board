@@ -213,6 +213,12 @@ if "issues(states:OPEN" in args:
     out=[{"data":{"repository":{"issues":{"nodes":[f["issue"]],"pageInfo":{"hasNextPage":False,"endCursor":None}}}}}]
 elif "graphql" in args:
     out=[{"data":{"repository":{"defaultBranchRef":{"name":"main"},"pullRequest":{"headRefOid":f["head"],"state":"OPEN","baseRefName":"main","body":"","closingIssuesReferences":{"pageInfo":{"hasNextPage":False},"nodes":[{"number":3,"repository":{"nameWithOwner":"x/y"}}]}}}}}]
+elif "/pulls/9" in args or args.startswith("pr view 9"):
+    merged=f.get("merged")
+    if args.startswith("pr view"):
+        out={"state":"MERGED" if merged else "OPEN","headRefOid":(merged or {}).get("head",f["head"]),"mergeCommit":{"oid":merged["merge"]} if merged else None}
+    else:
+        out={"merged":bool(merged),"head":{"sha":(merged or {}).get("head",f["head"])},"merge_commit_sha":(merged or {}).get("merge")}
 elif "/issues/3/comments" in args:
     out=[f["records"]]
 elif "/issues/9/comments" in args:
@@ -237,6 +243,12 @@ print(json.dumps(out))
             self.assertFalse(deps()["needsYouDone"], "new code must never inherit old done or label")
             self.assertTrue(deps().get("approvalRefresh"), "stale request must be sent for fresh review/request")
             fixture["head"] = HEAD
+            fixture["merged"] = {"head": HEAD, "merge": "c" * 40}
+            self.assertEqual(deps().get("mergedAtHead"), {"pr": 9, "head": HEAD, "merge": "c" * 40},
+                             "a human merge at the requested head needs Done bookkeeping, not a review")
+            fixture["merged"] = {"head": "d" * 40, "merge": "c" * 40}
+            self.assertNotIn("mergedAtHead", deps(), "a merge at another head is not the reviewed code")
+            fixture["merged"] = None
             fixture["records"].append(comment("Reason tag: 🙋 a new maintainer request", 4))
             self.assertFalse(deps()["needsYouDone"], "a newer maintainer request must block resume")
 
