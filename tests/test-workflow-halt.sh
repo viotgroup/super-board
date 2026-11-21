@@ -19,6 +19,7 @@ async function run(cards, failAt) {
     }
     return { status: options.label.startsWith(failAt + ':') ? 'halted' : 'advanced', column:'QA', detail:'result' }
   }
+  const parallel = (thunks) => Promise.all(thunks.map((f) => f()))
   const pipeline = async (items, ...stages) => {
     const results = []
     // Sequential scheduling makes queued work visible after a sibling trips the run.
@@ -29,8 +30,8 @@ async function run(cards, failAt) {
     }
     return results
   }
-  const output = await new AsyncFunction('args','agent','pipeline','log',source)(
-    {configPath:'fixture.json',cards}, agent,pipeline,()=>{})
+  const output = await new AsyncFunction('args','agent','pipeline','parallel','log',source)(
+    {configPath:'fixture.json',cards}, agent,pipeline,parallel,()=>{})
   return {calls, output}
 }
 const cards = [1,2].map(number => ({number,title:'Task',status:'Ready'}))

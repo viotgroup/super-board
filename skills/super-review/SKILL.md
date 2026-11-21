@@ -408,7 +408,10 @@ Activated per `config.truth_gate`:
 - `non-trivial` (default) — diff ≥10 lines OR labels in `{security, migration, payments, auth}` trigger adversarial.
 - `always` — every card.
 
-When activated, spawn 2 sub-agents in parallel:
+Inside a super-board workflow wave the workflow itself runs both sub-agents, each in a fresh
+context, and puts their verdicts in the Reviewer's prompt: lane agents cannot spawn, and a
+Reviewer that plays both roles inline only grades its own reading. Then skip the spawn and go
+to "After collecting". Anywhere else, when activated, spawn 2 sub-agents in parallel:
 - **Code-grounder.** Verify cited file:line still exists and matches claims.
 - **Historian.** `git blame` the changed lines; check for ADRs / prior incidents.
 

@@ -121,7 +121,7 @@ const REVIEW_MEMORY = [
   // Simplest-solution pass (super-review step 3): Should fix at most, never a bounce on its own.
   `Run ponytail:ponytail-review on the merge-base diff (inline ladder if the plugin is absent); Over-engineering never blocks merge alone.`,
   // Truth-check brief is fixed (super-review → Adversarial mode); a hand-written one once made over-building blocking.
-  `Truth-check sub-agents get the fixed brief from super-review → "Adversarial mode", verbatim. After collecting, reclass any Over-engineering Blocker to Should fix; it never decides merge or bounce.`,
+  `Truth-check verdicts come from the workflow's own sub-agents (listed below). After collecting, reclass any Over-engineering Blocker to Should fix; it never decides merge or bounce.`,
   // Merge policy + migrations live in the gate (run.md → Merge protocol step 5).
   `Merge only via super-board-merge-gate.sh. Exit 7 = merge_policy says a human merges (money/auth/schema/size): Blocked with the 🙋 template quoting its human-gate lines; To unblock = merge it yourself, or comment done to approve.`,
   `Exit 8 = 🙋 needs you (migration for a DB the robot may not touch, failed migrate, declared human step): Blocked with the 🙋 template, exact commands from its needs-you lines, label needs-you.`,
@@ -160,6 +160,7 @@ const lanePrompt = (lane, card) => [
   BOARD_IO(),
   `Commits, PR title, PR body blocks, comments: .claude/skills/super-board/references/writing-standard.md. Rewrite only your own PR body blocks, with .claude/bin/super-board-pr-body.sh.`,
   ...(lane === 'review' ? REVIEW_MEMORY : []),
+  ...(lane === 'review' ? truthLines(card.truth) : []),
   ...(lane === 'qa' && card.status === 'Ready'
     ? [`This card is labelled qa: it skips Building. Move it Ready → QA yourself, create the issue branch from the base branch, and test what is already there (run.md → "qa cards").`]
     : []),
@@ -189,6 +190,60 @@ const mergedPrompt = (card) => [
   `Report via structured output: status=advanced, column=Done, detail = one line with the merge sha; or status=failed / halted with the reason.`,
 ].join('\n')
 const mergedModel = (input.tier || 'medium') === 'low' ? 'haiku' : 'sonnet'
+
+// Truth-check (super-review → "Adversarial mode"). A lane agent has no tool to spawn
+// sub-agents, so 21 reviews on 2026-10-23..24 ran both roles inline and graded their own
+// work (78-90, never below the 70 threshold). The workflow runs the two skeptics itself,
+// each in a fresh context, and hands their verdicts to the Reviewer.
+const TRUTH_SCHEMA = {
+  type: 'object',
+  properties: {
+    skipped: { type: 'boolean' },
+    confidence: { type: 'integer' },
+    findings: { type: 'array', items: { type: 'string' } },
+    detail: { type: 'string' },
+  },
+  required: ['skipped', 'detail'],
+}
+const TRUTH_ROLES = {
+  'Code-grounder': 'verify every file:line the PR cites still exists and does what the PR claims.',
+  Historian: 'git blame the changed lines; look for ADRs, prior incidents, reverted attempts.',
+}
+const truthPrompt = (role, card) => [
+  READ_FAILURE,
+  `Find the open PR that closes issue #${card.number} ("${card.title}"), then fill and follow the brief below. You write nothing: no comments, labels, moves or commits.`,
+  `Skip first: read truth_gate from ${input.configPath} (default "non-trivial"). "off", or "non-trivial" with a merge-base diff under 10 lines and no security / migration / payments / auth label → return skipped=true.`,
+  `Otherwise get the ACs from the issue, the merge-base diff with local git (git fetch origin, then git diff origin/<base_branch>...origin/<head branch>), and the builder's summary from the PR body.`,
+  SCRATCH(`issue-${card.number}-truth-${role.toLowerCase()}`),
+  '',
+  `You are the ${role} in an adversarial truth-check of the PR.`,
+  `Job: ${TRUTH_ROLES[role]}`,
+  `Read the issue ACs and the diff first and form your own hypotheses. Only then read the`,
+  `builder's summary, as claims to check, not as the frame.`,
+  `Budget: at most 50 gh calls; prefer local git. Over budget: confidence "insufficient_data".`,
+  `Class every finding: Gap / Bug / Verification miss / Scope drift / Over-engineering / No issue.`,
+  `Severity: Blocker / Should fix / Nit.`,
+  `Over-engineering is ALWAYS Should fix and NEVER Blocker on its own. It does not lower your`,
+  `confidence score.`,
+  `Confidence 0-100 = how sure you are the PR's claims are true and the code does what the ACs`,
+  `ask. Design taste and over-building do not count against it.`,
+  `Return: findings (class, severity, file:line, one line each) and confidence (omit it for insufficient_data).`,
+].join('\n')
+// Skeptics need real reasoning but not the session model on every review.
+const truthModel = { low: 'sonnet', medium: 'opus', high: undefined }[input.tier || 'medium']
+const runTruth = async (card) => {
+  const out = await parallel(Object.keys(TRUTH_ROLES).map((role) => () =>
+    agent(truthPrompt(role, card), { label: `truth:${role}:#${card.number}`, phase: 'Review', schema: TRUTH_SCHEMA, ...(truthModel ? { model: truthModel } : {}) })
+      .then((r) => ({ role, ...(r || { skipped: false, confidence: null, detail: 'agent returned no result' }) }))))
+  return out.filter(Boolean)
+}
+const truthLines = (truth) => !truth ? [] : truth.every((t) => t.skipped)
+  ? [`Truth-check: both workflow sub-agents skipped it under truth_gate (${truth[0].detail}). Do not run it yourself.`]
+  : [
+    `Truth-check already ran in this workflow as two independent sub-agents. Do NOT run it inline or spawn your own;`,
+    `apply super-review → "Adversarial mode" → "After collecting" and the MINIMUM rule to these verdicts (no confidence = insufficient_data):`,
+    ...truth.map((t) => `- ${t.role}: confidence ${t.confidence ?? 'insufficient_data'} · ${t.detail} · findings: ${(t.findings || []).join(' | ') || 'none'}`),
+  ]
 
 // Run-tier model ladders. Card complexity indexes into the active ladder;
 // undefined = inherit the session model (the strongest available — e.g.
@@ -363,7 +418,8 @@ const results = await pipeline(
     if (at === 'Review') {
       // Reviewer always on session model. No lane-level serialisation: the merge
       // gate holds the mutex for the merge alone (see the note above).
-      await runLane('review', card, undefined, history)
+      const truth = halted ? null : await runTruth(card)
+      await runLane('review', { ...card, truth }, undefined, history)
     }
     return { number: card.number, history }
   }

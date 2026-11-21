@@ -14,12 +14,13 @@ const AsyncFunction = (async () => {}).constructor
 const run = (args, reply) => {
   const prompts = {}
   const agent = async (prompt, opts) => { prompts[opts.label] = prompt; return reply(opts.label) }
+  const parallel = (thunks) => Promise.all(thunks.map((f) => f()))
   const pipeline = async (items, ...stages) => Promise.all(items.map(async (it) => {
     let v = it
     for (const [i, st] of stages.entries()) v = i === 0 ? await st(it) : await st(v, it)
     return v
   }))
-  return new AsyncFunction('args', 'agent', 'pipeline', 'log', src)(args, agent, pipeline, () => {})
+  return new AsyncFunction('args', 'agent', 'pipeline', 'parallel', 'log', src)(args, agent, pipeline, parallel, () => {})
     .then((out) => ({ out, prompts }))
 }
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1) }
@@ -38,7 +39,13 @@ const base = { configPath: 'c.json' }
   ;/Gap \/ Bug \/ Verification miss \/ Scope drift \/ Over-engineering/.test(rp) || fail('review prompt must name the finding classes')
   rp.includes('ponytail:ponytail-review') || fail('review prompt must run ponytail-review')
   ;/never blocks merge alone/.test(rp) || fail('review prompt must say Over-engineering never blocks alone')
-  ;/fixed brief from super-review/.test(rp) || fail('review prompt must use the fixed truth-check brief')
+  ;/Truth-check already ran in this workflow as two independent sub-agents\. Do NOT run it inline/.test(rp) || fail('review prompt must hand over the workflow truth-check, not run it inline')
+  ;['truth:Code-grounder:#7', 'truth:Historian:#7'].forEach((l) => {
+    const tp = a.prompts[l] || fail(`${l} must run as its own workflow agent`)
+    ;['in an adversarial truth-check of the PR', 'Over-engineering is ALWAYS Should fix and NEVER Blocker on its own',
+      'Design taste and over-building do not count against it'].forEach((line) => tp.includes(line) || fail(`${l} must carry the fixed brief: ${line}`))
+    ;/You write nothing/.test(tp) || fail(`${l} must stay read-only`)
+  })
   ;/reclass any Over-engineering Blocker to Should fix/.test(rp) || fail('review prompt must re-apply the Over-engineering rule after the truth-check')
   ;['build:#7', 'qa:#7'].forEach((l) => a.prompts[l].includes('ponytail-review') && fail(`${l} must not get the review pass`))
   ;['build:#7', 'qa:#7'].forEach((l) => a.prompts[l].includes('super-review:report') && fail(`${l} must not get review memory`))

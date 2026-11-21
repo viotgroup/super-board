@@ -24,12 +24,13 @@ const run = (args, verdicts) => {
     if (opts.label.startsWith('classify')) return { kind: 'feature', complexity: 'low' }
     return { status: 'advanced', column: opts.label.startsWith('review') ? 'Done' : 'next', detail: 'ok' }
   }
+  const parallel = (thunks) => Promise.all(thunks.map((f) => f()))
   const pipeline = async (items, ...stages) => Promise.all(items.map(async (it) => {
     let v = it
     for (const [i, st] of stages.entries()) v = i === 0 ? await st(it) : await st(v, it)
     return v
   }))
-  return new AsyncFunction('args', 'agent', 'pipeline', 'log', src)(args, agent, pipeline, () => {})
+  return new AsyncFunction('args', 'agent', 'pipeline', 'parallel', 'log', src)(args, agent, pipeline, parallel, () => {})
     .then((out) => ({ out, labels, prompts }))
 }
 const fail = (m) => { console.error('FAIL: ' + m); process.exit(1) }
