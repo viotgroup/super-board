@@ -33,6 +33,7 @@ case "$kind" in
   ids) echo '{"data":{"repositoryOwner":{"projectV2":{"id":"PVT_1","field":{"id":"PVTSSF_1","options":[{"id":"opt_ready","name":"Ready"},{"id":"opt_qa","name":"QA"}]}}}}}' ;;
   card)
     case "$*" in
+      *issue=555*) echo '{"data":{"repository":{"issueOrPullRequest":{"projectItems":{"nodes":[]}}}}}' ;;
       *issue=999*) echo '{"data":{"repository":{"issueOrPullRequest":{"projectItems":{"nodes":[{"id":"PVTI_other","project":{"number":7,"owner":{"login":"acme"}},"fieldValueByName":null}]}}}}}' ;;
       *) echo '{"data":{"repository":{"issueOrPullRequest":{"projectItems":{"nodes":[{"id":"PVTI_other","project":{"number":7,"owner":{"login":"acme"}},"fieldValueByName":null},{"id":"PVTI_232","project":{"number":15,"owner":{"login":"Acme"}},"fieldValueByName":{"name":"Building"}}]}}}}}' ;;
     esac ;;
@@ -86,10 +87,24 @@ reset_log
 [ "$(card status 232)" = Building ] && [ "$(calls card)" = 1 ] || fail "status read wrong"
 ok "status = 1 live read"
 
-# 7 — an issue on another board only: exit 3.
-RC=0; card item-id 999 >/dev/null 2>&1 || RC=$?
+# 7 — an issue on another board only: one board read confirms it, then exit 3.
+cat > "$TMP/items.json" <<'JSON'
+[{"data":{"repositoryOwner":{"projectV2":{"items":{"totalCount":1,"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
+  {"id":"PVTI_555","fieldValueByName":{"name":"Ready"},"content":{"__typename":"Issue","number":555,"title":"Five","url":"u555","repository":{"nameWithOwner":"acme/app"},"labels":{"nodes":[]}}}]}}}}}]
+JSON
+reset_log; RC=0; card item-id 999 >/dev/null 2>&1 || RC=$?
 [ "$RC" = 3 ] || fail "issue off this board should exit 3 (rc=$RC)"
-ok "issue not on this board → 3"
+[ "$(calls items)" = 1 ] || fail "off-board lookup should read the board once: $(cat "$FAKE_LOG")"
+ok "issue not on this board → one board read, then 3"
+
+# 7b — Issue.projectItems comes back empty for a card that is on the board
+#      (user-owned board, org repo): the board read finds it and caches the id.
+reset_log
+[ "$(card item-id 555)" = PVTI_555 ] || fail "card missing from projectItems should be found on the board"
+jq -e '.items["555"] == "PVTI_555"' "$TMP/cache/board-acme-15.json" >/dev/null || fail "board fallback should cache the item id"
+reset_log; card item-id 555 >/dev/null
+[ "$(wc -l < "$FAKE_LOG" | tr -d ' ')" = 0 ] || fail "a cached fallback id needs no read: $(cat "$FAKE_LOG")"
+ok "empty projectItems → found on the board, cached"
 
 # 8 — items: gh item-list shape, the fields the wave planner reads.
 cat > "$TMP/items.json" <<'EOF'
