@@ -8,7 +8,8 @@ Only an explicit new run clears it with --resume after preserving the old reason
 Mutations never enter this retry helper. For the agent-facing kinds in FORMS, a
 payload that fails its shape on every attempt is the caller's malformed read, not
 an outage: that call exits 64 with the valid form and the run keeps going. So does
-a command line gh itself refuses (e.g. --slurp with --jq): it never reached GitHub.
+a command line gh itself refuses (e.g. --slurp with --jq, an unknown --json field), and
+a number that names no PR or issue (pr view on an issue number): neither is an outage.
 Scripts whose commands are fixed set SB_GITHUB_READ_STRICT=1 to keep halting on both.
 """
 from __future__ import annotations
@@ -129,10 +130,18 @@ def permanent_error(text):
                      r'Could not resolve to (?:a|an) |missing required scopes', text, re.I) is not None
 
 
+def wrong_number(text):
+    # A number that names no PR (it is an issue) or no issue: the caller's mistake. A missing
+    # repository or a REST 404 can mean lost access, so those still halt via permanent_error.
+    return re.search(r'Could not resolve to (?:a|an) (?:PullRequest|Issue|issue or pull request) '
+                     r'with the number of', text, re.I) is not None
+
+
 def usage_error(text):
     # gh refused its own arguments before any request: the caller's command, not an outage.
     return re.search(r'not supported with|unknown (?:shorthand )?flag|flag needs an argument|'
-                     r'accepts (?:at most )?\d+ arg|required flag\(s\)|invalid argument', text, re.I) is not None
+                     r'accepts (?:at most )?\d+ arg|required flag\(s\)|invalid argument|'
+                     r'Unknown JSON field', text, re.I) is not None
 
 
 def require(condition, why):
@@ -347,6 +356,10 @@ def read(args, kind='json', meta=None, recovering=False):
                     diagnostic += json.dumps([p.get('errors', []) for p in (payload if isinstance(payload, list) else [payload]) if isinstance(p, dict)])
                 except ValueError:
                     pass
+            if wrong_number(diagnostic) and not os.environ.get('SB_GITHUB_READ_STRICT'):
+                refusal = re.search(r'Could not resolve to[^.\n]*', diagnostic)[0]
+                raise ValueError(f'{refusal}; this call failed, the run continues. '
+                                 f'Check the number, and use issue view for an issue, pr view for a PR.')
             if permanent_error(diagnostic):
                 halt('GitHub rejected a required read (query, authentication, or permission error); fix it before restarting', attempt, operation)
             if result.returncode and usage_error(result.stderr):
