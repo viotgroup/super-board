@@ -662,8 +662,8 @@ See `.claude/skills/super-board/references/run.md` → Tester (first pass — re
 for affected selection, host readiness, real assertions and fresh proof.
 3b. Run the **Test-gap check** (above) against the Builder's diff; its High gaps join the plan.
 3c. Run the **Security pass** (above) on the PR's diff. Any kept finding → Fail (step 7).
-4. Run tests. Capture evidence to `docs/super-board/runs/issue-<N>-qa-v<N>/`. **For any UI-affecting issue, capture at least one screenshot per AC** (Playwright `page.screenshot` or `browse --screenshot`). Save with descriptive names: `ac1-<short-desc>.png`, not `screenshot1.png`.
-5. **Commit the evidence directory** to the issue branch alongside test files (`git add docs/super-board/runs/issue-<N>-qa-v<N>/ && git commit && git push`). This is non-optional — without it, the inline image markdown in the issue comment won't render on GitHub.
+4. Run tests. Capture evidence to a folder OUTSIDE the worktree, `${TMPDIR:-/tmp}/super-board-evidence/issue-<N>-qa-v<V>/`. **For any UI-affecting issue, capture at least one screenshot per AC** (Playwright `page.screenshot` or `browse --screenshot`). Save with descriptive names: `ac1-<short-desc>.png`, not `screenshot1.png`.
+5. **Publish the evidence folder**, never commit it to the issue branch: `bash .claude/bin/super-board-evidence.sh <folder> issue-<N>-qa-v<V>` pushes it to the never-merged `super-board-evidence` branch and prints `{"sha","path","raw"}`. This is non-optional — without it the inline images won't render. Commit only test files to the issue branch: evidence in the PR diff counts toward `auto_max_lines` and forces a human merge.
 6. **Pass** → tick the PR's `ac` block with proof lines, write `visual` for UI, append a `history` row, rewrite `status` (`super-board-pr-body.sh`) → `[qa] [report] ✅` PR comment with results + evidence path → **issue comment with screenshot evidence** (see "Issue-comment evidence format" below) → move QA → Review. Clean up worktree.
 7. **Fail** → leave failing ACs unchecked with the reason, append a `history` row, rewrite `status` → `[qa] [report] ❌` PR comment with per-AC expected/actual + repro file:line + evidence path + "what fixed should look like" → issue comment with the failure screenshots → increment rebuild counter → move QA → Ready (label `loop:rebuild-N`). Clean up worktree.
 
@@ -699,10 +699,10 @@ The Tester's issue comment is the user's primary visibility into "is this actual
 **The canonical template lives in `.claude/skills/super-board/references/run.md` → "Screenshot embed format" (right after Tester first pass).** Do not duplicate it here; both lanes (super-board Tester + standalone super-qa) follow that exact format. Summary of rules workers must obey:
 
 - Capture screenshots at the standard viewports for UI ACs: **desktop 1920×1080, tablet 1024×768, mobile 375×667**.
-- Commit the screenshots to the issue branch and push *before* writing the comment — inline image URLs won't render unless the file is on GitHub.
-- Use the `https://github.com/<OWNER>/<REPO>/raw/<SHA>/...` URL form, `<SHA>` = the commit that added the screenshots, so images keep rendering after the branch is deleted on merge. Resolve `<OWNER>/<REPO>` from `git remote get-url origin`.
+- Publish the screenshots with `super-board-evidence.sh` *before* writing the comment — inline image URLs won't render unless the file is on GitHub.
+- Image URLs are the printed `raw` value plus the file name (`https://github.com/<OWNER>/<REPO>/raw/<SHA>/issue-<N>-qa-v<V>/<file>`), `<SHA>` = the evidence-branch commit, so images keep rendering after the issue branch is merged and deleted.
 - Embed the same screenshots in BOTH the PR timeline comment AND the issue comment — the issue page is the user's primary view.
-- Name the evidence folder once (`runs/issue-<N>-qa-v<V>/`) — no file lists.
+- Name the evidence folder once (the `tree/<SHA>/issue-<N>-qa-v<V>` link) — no file lists.
 - For non-visual ACs (API tests, migration SQL), skip the screenshot table but keep the evidence-path line. State the omission explicitly so the user knows it was intentional.
 - If screenshot capture fails (no display, headless crash), document the reason and link alternative evidence (log file, HTTP trace) rather than silently dropping the requirement.
 - Failure comments use the same format with broken-state screenshots (e.g., `before-fix-desktop.png`).
@@ -711,8 +711,8 @@ The Tester's issue comment is the user's primary visibility into "is this actual
 1. Read PR review threads; filter `[qa]` prefix.
 2. For each unresolved `[qa]` thread: apply fix to test files → resolve thread via `gh api graphql resolveReviewThread`.
 3. Re-run full test suite for the ticket.
-4. Save evidence to `runs/issue-<N>-qa-v<N+1>/`.
-5. Commit + push. Verify ALL `[qa]` threads resolved.
+4. Publish evidence as `issue-<N>-qa-v<V+1>` with `bash .claude/bin/super-board-evidence.sh` (folder outside the worktree, never in the branch).
+5. Commit + push the test fixes. Verify ALL `[qa]` threads resolved.
 6. Update the PR's `ac`, `history`, `status` blocks; post `[qa] [report]` PR + issue comments (writing-standard.md § 4). Move QA → Review.
 
 ### Failure → `root-cause-hash:` line required

@@ -347,6 +347,7 @@ don't stall on prompts:
     "Bash(bash .claude/bin/super-board-codex-wave.sh:*)",
     "Bash(bash .claude/bin/super-board-host.sh:*)",
     "Bash(bash .claude/bin/super-board-pr-body.sh:*)", "Bash(gh pr edit:*)",
+    "Bash(bash .claude/bin/super-board-evidence.sh:*)",
     "Bash(bash .claude/bin/super-board-stop.sh:*)",
     plus your project's test runners (e.g. "Bash(npm test:*)", "Bash(npx playwright:*)").
 

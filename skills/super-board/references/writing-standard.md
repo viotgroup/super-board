@@ -135,7 +135,7 @@ alert, one `> needs-you: <command>` line each; the merge gate reads it there or 
 - **Who:** any signed-in user (free plan)
 - **What happened:** the spinner never stops
 
-![receipts · desktop](https://github.com/acme/app/raw/5a2363b/docs/super-board/runs/issue-790-qa-v1/desktop.png)
+![receipts · desktop](https://github.com/acme/app/raw/5a2363b/issue-790-qa-v1/desktop.png)
 ```
 
 **Solution** — plain bullets, one change each. Docs consulted go last, as `Docs:` bullets.
@@ -253,7 +253,7 @@ A 12 MB PDF spins forever. The 413 is never handled.
   - c. Drag `12mb.pdf` onto the drop zone
 - **Who:** any signed-in user
 
-![receipts · desktop](https://github.com/acme/app/raw/5a2363b/docs/super-board/runs/issue-790-qa-v1/desktop.png)
+![receipts · desktop](https://github.com/acme/app/raw/5a2363b/issue-790-qa-v1/desktop.png)
 
 ## Fix
 Map 413 to the size message; check size before upload.
