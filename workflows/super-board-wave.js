@@ -160,7 +160,7 @@ const lanePrompt = (lane, card) => [
   BOARD_IO(),
   `Commits, PR title, PR body blocks, comments: .claude/skills/super-board/references/writing-standard.md. Rewrite only your own PR body blocks, with .claude/bin/super-board-pr-body.sh.`,
   ...(lane === 'review' ? REVIEW_MEMORY : []),
-  ...(lane === 'review' ? truthLines(card.truth) : []),
+  ...(lane === 'review' ? [...priorLines(card.prior), ...truthLines(card.truth)] : []),
   ...(lane === 'qa' && card.status === 'Ready'
     ? [`This card is labelled qa: it skips Building. Move it Ready → QA yourself, create the issue branch from the base branch, and test what is already there (run.md → "qa cards").`]
     : []),
@@ -237,6 +237,39 @@ const runTruth = async (card) => {
       .then((r) => ({ role, ...(r || { skipped: false, confidence: null, detail: 'agent returned no result' }) }))))
   return out.filter(Boolean)
 }
+// Re-review gate. A Reviewer that finds any prior finding not fixed bounces again and
+// skips the fresh pass (run.md → Reviewer step 3b), so two skeptics run before it would
+// check a head nobody reviews. On a card back from a bounce (a loop:* label), one cheap
+// agent grades the prior report first; any finding still open skips the truth-check.
+const PRIOR_SCHEMA = {
+  type: 'object',
+  properties: {
+    priorReport: { type: 'boolean' },
+    notFixed: { type: 'array', items: { type: 'string' } },
+    detail: { type: 'string' },
+  },
+  required: ['priorReport', 'notFixed', 'detail'],
+}
+const priorPrompt = (card) => [
+  READ_FAILURE,
+  `Find the open PR that closes issue #${card.number} ("${card.title}"). Load the newest PR comment containing "<!-- super-review:report -->". You write nothing.`,
+  `None → priorReport=false, notFixed=[]. Found → for every finding row not already ✅ fixed or no longer applies, check the PR's current head (local git, git fetch origin first):`,
+  `still present → list it in notFixed as "<R-id> <file:line> <why it still holds>". Nits never count: a Nit does not bounce a card.`,
+  SCRATCH(`issue-${card.number}-prior`),
+].join('\n')
+const priorModel = (input.tier || 'medium') === 'low' ? 'haiku' : 'sonnet'
+const isReReview = (card) => labelsOf(card).some((l) => l.startsWith('loop:'))
+const runReviewPrep = async (card) => {
+  if (isReReview(card)) {
+    const prior = await agent(priorPrompt(card), { label: `prior:#${card.number}`, phase: 'Review', model: priorModel, schema: PRIOR_SCHEMA })
+    if (prior && prior.priorReport && (prior.notFixed || []).length) return { prior }
+  }
+  return { truth: await runTruth(card) }
+}
+const priorLines = (prior) => !prior ? [] : [
+  `Truth-check was NOT run: a pre-check graded the prior report and found these still open: ${prior.notFixed.join(' | ')}.`,
+  `Verify them yourself (step 3b). Any not fixed → bounce without the fresh pass, as usual. If you find every one fixed after all and go on to a fresh pass, run the truth-check inline as the fallback and say "truth inline (pre-check wrong)" in detail.`,
+]
 const truthLines = (truth) => !truth || !truth.length ? [] : truth.every((t) => t.skipped)
   ? [`Truth-check: both workflow sub-agents skipped it under truth_gate (${truth[0].detail}). Do not run it yourself.`]
   : [
@@ -418,8 +451,8 @@ const results = await pipeline(
     if (at === 'Review') {
       // Reviewer always on session model. No lane-level serialisation: the merge
       // gate holds the mutex for the merge alone (see the note above).
-      const truth = halted ? null : await runTruth(card)
-      await runLane('review', { ...card, truth }, undefined, history)
+      const prep = halted ? {} : await runReviewPrep(card)
+      await runLane('review', { ...card, ...prep }, undefined, history)
     }
     return { number: card.number, history }
   }

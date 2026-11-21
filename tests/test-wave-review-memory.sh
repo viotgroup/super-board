@@ -64,6 +64,22 @@ const base = { configPath: 'c.json' }
   const c = await run({ ...base, cards: [{ number: 11, status: 'Review', title: 't' }] },
     () => ({ status: 'advanced', column: 'Done', detail: 'merged' }))
   c.out.cards[0].priorFindings === null || fail('first review must report priorFindings: null')
+  ;['prior:#11'].forEach((l) => l in c.prompts && fail('a first review needs no prior-report pre-check'))
+
+  // 4 — a card back from a bounce whose prior finding is still open skips the truth-check.
+  const open = (label) => label.startsWith('prior') ? { priorReport: true, notFixed: ['R1 src/a.ts:4 still unguarded'], detail: '1 open' }
+    : { status: 'bounced', column: 'Ready', detail: 'R1 not fixed' }
+  const d = await run({ ...base, cards: [{ number: 13, status: 'Review', title: 't', labels: ['loop:rebuild-1'] }] }, open)
+  d.prompts['prior:#13'] || fail('a loop:* card must get the prior-report pre-check')
+  ;/You write nothing/.test(d.prompts['prior:#13']) || fail('the pre-check must stay read-only')
+  Object.keys(d.prompts).some((l) => l.startsWith('truth:')) && fail('an open prior finding must skip the truth-check')
+  ;/Truth-check was NOT run: .*R1 src\/a\.ts:4/.test(d.prompts['review:#13']) || fail('the Reviewer must be told why the truth-check was skipped')
+
+  // 5 — the same card with every prior finding fixed runs the truth-check as usual.
+  const fixed = (label) => label.startsWith('prior') ? { priorReport: true, notFixed: [], detail: 'all fixed' }
+    : { status: 'advanced', column: 'Done', detail: 'merged' }
+  const e = await run({ ...base, cards: [{ number: 15, status: 'Review', title: 't', labels: ['loop:rebuild-1'] }] }, fixed)
+  ;['truth:Code-grounder:#15', 'truth:Historian:#15'].forEach((l) => e.prompts[l] || fail(`${l} must run when no prior finding is open`))
 })().catch((e) => fail(e.stack))
 JS
-echo "PASS: test-wave-review-memory.sh (3 scenarios)"
+echo "PASS: test-wave-review-memory.sh (5 scenarios)"
