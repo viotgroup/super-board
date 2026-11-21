@@ -260,6 +260,14 @@ slices (each thin end to end, under the cap, with its own ACs), which slice this
 `/to-tickets` as the way to file the rest. Then move the card to Blocked with `❓` ("too big —
 split proposed in PR #<P>", `block-template.md`). Never pad past the cap to "finish" the ticket.
 
+### Migration file names (every ticket)
+
+A new migration's timestamp prefix is the current time, never the newest existing prefix plus a
+round step. Use the generator the ORM ships (TypeORM `migration:generate` / `migration:create`
+stamp `Date.now()`), or take `node -e 'console.log(Date.now())'` for a hand-written file. Cards
+built in parallel each picked "next number" on 2026-10-24 and collided three times
+(`1784000400000`, `1784000500000`). On a rebase, rename yours if its prefix is already on the base.
+
 ### Lifecycle (Builder, rebuild)
 Triggered when card returns to Ready/Building with `loop:rebuild-N` label.
 1. Read PR review threads on this branch's PR; filter `[builder]` prefix.
