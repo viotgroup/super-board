@@ -337,6 +337,11 @@ column), never built unchecked. `qa` cards are not pre-flighted: nothing is buil
 
 1. Pull latest of base; checkout `issue-<N>-<slug>` into worktree `.claude/worktrees/issue-<N>-qa/`.
    A `qa` card has no branch yet: move it Ready → QA, then create the branch from the base.
+   1b. **Test on today's base.** `git merge --no-edit origin/<base>` into the issue branch before
+   testing; push the merge commit with your tests. Parallel cards land while this one waits, and
+   on 2026-10-24 three of them (#118, #123, #129) passed QA on a stale base, then broke or
+   conflicted after a sibling merged. Conflict → `git merge --abort`, change nothing else, and
+   send the card to Ready with `loop:rebase` (→ "The rebase pass"); that is not a QA fail.
 2. `target.url` set → health-check it first. Unhealthy → Block.
 3. Read issue + PR + Builder's handoff comment.
 4. Build issue-scoped test plan: one observable test per AC.

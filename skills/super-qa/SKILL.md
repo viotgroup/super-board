@@ -655,7 +655,7 @@ When invoked by super-board (env `SUPER_BOARD_RUN=1` or invocation contains "sup
 
 ### Lifecycle (Tester, first pass)
 See `.claude/skills/super-board/references/run.md` → Tester (first pass — repo-backed). Summary:
-1. Pull latest of base; checkout `issue-<N>-<slug>` into worktree (a `qa` card: create it from the base).
+1. Pull latest of base; checkout `issue-<N>-<slug>` into worktree (a `qa` card: create it from the base), then merge `origin/<base>` into it before testing (run.md → Tester step 1b; conflict → Ready with `loop:rebase`, not a QA fail).
 2. Read issue + PR + Builder's handoff.
 3. Build issue-scoped test plan: ONE observable test per AC.
 3a. Existing project verifier → follow [project-verifier.md](references/project-verifier.md)
