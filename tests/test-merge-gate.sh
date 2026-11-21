@@ -136,6 +136,9 @@ case "$1 $2" in
     oid="$STUB_OID"; grep -q '^pr merge' "$GH_LOG" && oid="${STUB_OID_AFTER:-$STUB_OID}"
     echo "feat $oid" ;;
   "pr merge") exit "${STUB_MERGE_RC:-0}" ;;
+  "issue view")
+    [ "${STUB_ISSUE_FAIL:-0}" = 0 ] || exit 1
+    jq -cn --arg l "${STUB_ISSUE_LABELS:-}" '{labels: ($l | split(",") | map(select(. != "") | {name: .}))}' ;;
   "pr diff")
     [ "${STUB_DIFF_FAIL:-0}" = 0 ] || exit 1
     if [ -n "${STUB_DIFF:-}" ]; then printf '%b' "$STUB_DIFF"; exit 0; fi
@@ -269,6 +272,22 @@ RC=0; OUT=$(STUB_OID="$SHA" STUB_META="$(meta money src/x.ts)" gate --expect-hea
 [ "$RC" -eq 7 ] || fail "a money label should exit 7, got $RC"
 echo "$OUT" | grep -q "^human-gate: money — label money" || fail "exit 7 must name the category, got: $OUT"
 grep -q '^pr merge' "$GH_LOG" && fail "no merge may be attempted on a human-gated PR"
+teardown
+
+# 14b — policy labels sit on the ticket: the issue the body closes lends its labels.
+head_setup
+RC=0; OUT=$(STUB_OID="$SHA" STUB_ISSUE_LABELS=money STUB_META="$(meta "" src/x.ts 'Closes #7')" gate --expect-head "$SHA" 2>/dev/null) || RC=$?
+[ "$RC" -eq 7 ] || fail "a money label on the closed issue should exit 7, got $RC"
+echo "$OUT" | grep -q "^human-gate: money — label money" || fail "the closed issue's label must be named, got: $OUT"
+grep -q '^issue view 7' "$GH_LOG" || fail "the gate must read the closed issue's labels"
+grep -q '^pr merge' "$GH_LOG" && fail "a money label on the closed issue must not merge"
+teardown
+
+# 14c — a closed issue whose labels cannot be read fails safe to a human (7).
+head_setup
+RC=0; OUT=$(STUB_OID="$SHA" STUB_ISSUE_FAIL=1 STUB_META="$(meta "" src/x.ts 'Fixes #7')" gate --expect-head "$SHA" 2>/dev/null) || RC=$?
+[ "$RC" -eq 7 ] || fail "an unreadable closed issue should exit 7, got $RC"
+grep -q '^pr merge' "$GH_LOG" && fail "an unreadable closed issue must not merge"
 teardown
 
 # 15 — an auth path, by glob; merge_policy.default human; a diff over auto_max_lines.
