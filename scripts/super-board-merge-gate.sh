@@ -236,8 +236,21 @@ fi
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # Outside $SCRATCH: `git worktree add` below needs that directory empty.
 META=$(mktemp); DIFF=$(mktemp)
+# Policy labels (money, auth, schema) are put on the ticket, not the PR, and
+# GitHub links no closing issues for a non-default base. Fold the labels of
+# every issue the body closes into META so the policy sees them.
+fold_issue_labels() {
+  local n l
+  for n in $(jq -r '.body' "$META" | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?):? +#[0-9]+' | grep -oE '[0-9]+' | sort -u); do
+    l=$(python3 "$GITHUB_READ" --kind json -- issue view "$n" ${REPO:+--repo "$REPO"} --json labels) || return 1
+    jq --argjson l "$(jq -c '.labels' <<<"$l")" '.labels += $l' "$META" > "$META.tmp" && mv "$META.tmp" "$META" || return 1
+  done
+}
 python3 "$GITHUB_READ" --kind metadata -- pr view "$PR" ${REPO:+--repo "$REPO"} --json labels,files,additions,deletions,changedFiles,body > "$META"
 python3 "$GITHUB_READ" --kind diff --meta "$META" -- pr diff "$PR" ${REPO:+--repo "$REPO"} > "$DIFF"
+fold_issue_labels || {
+  echo "human-gate: policy — could not read the closed issue's labels"
+  say "merge policy could not be evaluated — a human merges this one"; exit 7; }
 PLAN=$(python3 "$HERE/super-board-merge-policy.py" --config "$CONFIG" --meta "$META" --diff "$DIFF") || {
   echo "human-gate: policy — could not classify the PR (unreadable metadata)"
   say "merge policy could not be evaluated — a human merges this one"; exit 7; }
@@ -327,6 +340,7 @@ if [ "$APPROVED" = true ]; then
   # Code remains pinned; body-declared human steps and config can change without
   # a commit. Reclassify them too instead of reusing the old approval scope.
   python3 "$GITHUB_READ" --kind metadata -- pr view "$PR" ${REPO:+--repo "$REPO"} --json labels,files,additions,deletions,changedFiles,body > "$META"
+  fold_issue_labels || { say "human approval scope could not be refreshed"; exit 7; }
   PLAN=$(python3 "$HERE/super-board-merge-policy.py" --config "$CONFIG" --meta "$META" --diff "$DIFF") || {
     say "human approval scope could not be refreshed"; exit 7; }
   approval_check
