@@ -143,6 +143,11 @@ const SKILLS_CHECK = (cards, lane) => [
   `Load the exact resolved_path files. Only declared fallback IDs are allowed. Before using a conditional/custom helper repeat this CLI with --require <exact-name>.`,
 ].join('\n')
 
+// Lanes of one wave share the session scratchpad. On 2026-10-25 a Builder posted 20 author
+// notes another card's lane had left there under a generic name, so every lane gets its own folder.
+const SCRATCH = (who) =>
+  `Temp files (comment and PR body drafts, author notes, logs): only under <scratchpad>/${who}/, never the scratchpad root or another lane's folder; read nothing you did not write there yourself.`
+
 const lanePrompt = (lane, card) => [
   SKILLS_CHECK([card], lane),
   READ_FAILURE,
@@ -150,6 +155,7 @@ const lanePrompt = (lane, card) => [
   `Read .claude/skills/super-board/references/run.md → "${LANE[lane].section}" lifecycle and follow it EXACTLY:`,
   `create your own worktree under .claude/worktrees/, work on the issue branch, post the required PR/issue comments,`,
   `move the project card yourself, clean up the worktree on exit. Config: ${input.configPath}.`,
+  SCRATCH(`issue-${card.number}-${lane}`),
   BOARD_IO(),
   `Commits, PR title, PR body blocks, comments: .claude/skills/super-board/references/writing-standard.md. Rewrite only your own PR body blocks, with .claude/bin/super-board-pr-body.sh.`,
   ...(lane === 'review' ? REVIEW_MEMORY : []),
@@ -243,6 +249,7 @@ const preflightPrompt = (batch) => [
   `hold / sequence-behind → post the Block template (block-template.md) and move the card to Blocked yourself.`,
   `Two Ready cards overlapping each other with no open PR: the lower-numbered one proceeds; sequence only the other, blockedBy [the lower]. Never both.`,
   `A sequence with nothing to wait on (empty blockedBy) leaves the card in Ready: return column Ready and it builds.`,
+  SCRATCH(`preflight-${batch.map((c) => c.number).join('-')}`),
   BOARD_IO(),
   `Return one verdict per issue: proceed | hold | sequence | skipped (pre-flight blind). Never drop a card silently.`,
 ].join('\n')
