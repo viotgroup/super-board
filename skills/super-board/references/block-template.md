@@ -59,7 +59,9 @@ same rule: **prose above for the human, one parseable line below for the loop.**
 
 - `blocked-by: 32, 91` — this card returns to `Ready` the moment both close. The sweep does it.
 - `blocked-by: -` — nothing on this board clears it. It waits for a person, and the sweep leaves it
-  alone. Use this for every `🔐`, `💳`, `🔑`, `🧑`, `🎨` and `🙋` block.
+  alone. Use this for every `🔐`, `💳`, `🔑`, `🧑`, `🎨` and `🙋` block. A person releases it by
+  dragging the card out of Blocked; the planner then ignores the `-` for a Ready card, so the
+  comment is never edited.
 
 Write the numbers alone. **Never `blocked-by: none — but #26 must merge first`**: a line that says
 none and then names an issue is read as *no blocker* by the sweep and as *one blocker* by a human,

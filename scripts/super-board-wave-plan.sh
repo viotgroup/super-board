@@ -147,6 +147,13 @@ echo "$ITEMS" | jq --argjson cols "$COLUMNS" --argjson cap "$MAX_WORKERS" --argj
     else "build" end;
   # Unknown to the graph (closed, or beyond the fetch limit) is not "free".
   def free($n): (dep($n) | if . == null then false else .runnable end);
+  # A Ready card ignores a `blocked-by: -` line (humanGated). That line means "a
+  # person clears it", and a person dragging the card out of Blocked is that act;
+  # the lane comment carrying the line is never edited, so without this the card
+  # stayed unrunnable forever (#300, 2026-10-27). Open blockers still gate it, and
+  # the Blocked-column sweep keeps using free(), so it never frees a gated card.
+  def released($n): (dep($n) | if . == null then false
+                     else (.parseable and ((.openBlockers // []) | length) == 0) end);
 
   [ .items[]
     | select(.content.type == "Issue")
@@ -160,8 +167,8 @@ echo "$ITEMS" | jq --argjson cols "$COLUMNS" --argjson cap "$MAX_WORKERS" --argj
   # spends its slots on the work closest to Done.
   | [ $cols[] as $c | $all[] | select(.status == $c and $c != "Ready") ] as $flight
 
-  # Ready: only the ones the graph says are actually free.
-  | [ $all[] | select(.status == "Ready") | select(free(.number)) ] as $ready
+  # Ready: only the ones the graph says are actually free (see released()).
+  | [ $all[] | select(.status == "Ready") | select(released(.number)) ] as $ready
 
   # Blocked on a human merge that already happened at the reviewed head
   # (super-board-approval.py → mergedAtHead). Lane "merged" only confirms the merge
