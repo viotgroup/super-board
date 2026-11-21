@@ -32,7 +32,9 @@ Rules, from references/config-schema.json → merge_policy / migrations:
   (additions + deletions) above it → human ("big PR — please review"). Files
   matching merge_policy.size_exclude (default: lockfiles, generated output,
   snapshots, QA evidence under docs/super-board/runs/) and migration files (migrations.globs) do not count; migration
-  lines are reported separately. Per-file counts come from `files[].additions/
+  lines are reported separately. merge_policy.size_exclude_tests (default
+  false) also leaves test files (TEST_PATHS) out of the count, on top of
+  size_exclude. Per-file counts come from `files[].additions/
   deletions`; without them the PR totals are used.
 - merge_policy.always_human.<category>: any label, path glob or added-line
   keyword match → human. Categories ship as money, auth, schema; setting
@@ -211,6 +213,8 @@ def main() -> int:
     cap = DEFAULT_AUTO_MAX_LINES if cap is None else int(cap)
     excl = policy.get("size_exclude")
     excl = DEFAULT_SIZE_EXCLUDE if excl is None else excl
+    if policy.get("size_exclude_tests"):
+        excl = [*excl, *TEST_PATHS]
     files = meta.get("files") or []
     if files and all("additions" in f for f in files):
         size = mig_lines = 0

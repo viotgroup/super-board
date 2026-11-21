@@ -154,6 +154,10 @@
       "**/*.min.js", "**/*.min.css", "**/*.map", "**/*.pb.go", "**/*_pb2.py",
       "**/__snapshots__/**", "**/*.snap"
     ],
+    // true also leaves test files (*.spec.*, *.test.*, test/, tests/, e2e/,
+    // __tests__/) out of the size count, on top of size_exclude. Tests still
+    // get reviewed by the Reviewer lane; they just do not force a human merge.
+    "size_exclude_tests": false,
     // ALWAYS human, whatever `default` says. A PR matching ANY label, path glob
     // or keyword (case-insensitive, searched in the diff's ADDED lines only) of
     // a category exits the gate 7: no merge, card → Blocked 🙋 (the human merges

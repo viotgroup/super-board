@@ -250,10 +250,12 @@ Follow spec `.claude/skills/super-board/references/run.md` → Builder (first pa
 ### Keep each PR small (every ticket)
 Each PR stays under the merge size cap: `merge_policy.auto_max_lines` (default 400 changed lines,
 additions + deletions; lockfiles, generated files, snapshots and migration SQL do not count — see
-`merge_policy.size_exclude`). A PR over the cap is never auto-merged: the merge gate parks it in
+`merge_policy.size_exclude`; with `merge_policy.size_exclude_tests: true`, test files do not count
+either). A PR over the cap is never auto-merged: the merge gate parks it in
 Blocked 🙋 "big PR — please review".
 
-Check `git diff --shortstat origin/<base>...HEAD` (minus excluded files) before each push. If the
+Check `git diff --numstat origin/<base>...HEAD` (minus excluded files) before each push. Count the
+same files the gate counts; never cut tests to get under the cap. If the
 change grows past the cap mid-build, **stop — do not push on**. Commit and push what you have on
 the branch, leave the PR as a draft, and post a PR comment proposing the split: the vertical
 slices (each thin end to end, under the cap, with its own ACs), which slice this PR keeps, and
