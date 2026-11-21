@@ -37,7 +37,10 @@ REGISTRY = {
     'aliases': {'mattpocock-skills': ['diagnosing-bugs', 'tdd', 'implement', 'codebase-design', 'code-review',
                                    'resolving-merge-conflicts', 'domain-modeling', 'ask-matt', 'to-spec', 'to-tickets', 'implement-spec', 'improve-codebase-architecture'],
                 'ponytail': ['ponytail', 'ponytail-review']},
+    # testing-strategy has no published source (upstream lists it as external, not installed).
     'fallbacks': {'ponytail:ponytail': {'id': 'simplest-solution-first', 'source': POLICY + '#simplest-solution-first'},
+                  'testing-strategy': {'id': 'coverage-by-component-type',
+                                       'source': 'skills/super-qa/references/iteration-preamble.md#coverage-by-component-type'},
                   'ponytail:ponytail-review': {'id': 'over-engineering-ladder', 'source': 'skills/super-review/SKILL.md#over-engineering'}},
 }
 CORE = ['super-board', 'super-build', 'super-qa', 'super-review', 'super-collect', 'visual', 'git-sync', 'ui-refine-loop', 'pr-security-review']

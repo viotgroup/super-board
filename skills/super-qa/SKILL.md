@@ -546,6 +546,7 @@ The worker (per `references/iteration-preamble.md`) must load and follow:
 - `testing-strategy` — coverage judgment per component type, and what to skip.
   Consult it for *what is worth testing*; it does not pick the layer. The
   localisation ladder in `references/iteration-preamble.md` picks the layer.
+  Not installed → the "Coverage by component type" table there is the fallback.
 - `vitest` — mechanics for unit and integration tests in a TS/JS repo. 19
   references (`core-expect`, `features-mocking`, `features-coverage`,
   `core-hooks`, `advanced-vi`).

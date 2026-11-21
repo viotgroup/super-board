@@ -51,6 +51,20 @@ class Readiness(unittest.TestCase):
         (self.root / '.claude/skills/code-review/SKILL.md').unlink()
         self.assertIn('mattpocock-skills:code-review', [e['name'] for e in self.run_cli(expected=10)['entries'] if e['status'] == 'missing'])
 
+    def test_testing_strategy_falls_back_to_the_coverage_table(self):
+        self.full()
+        (self.root / '.claude/skills/testing-strategy/SKILL.md').unlink()
+        result = self.run_cli()
+        self.assertTrue(result['ready'], 'testing-strategy has no published source; its fallback must not block QA')
+        qa = next(e for e in result['entries'] if e['lane'] == 'qa' and e['name'] == 'testing-strategy')
+        self.assertEqual((qa['status'], qa['fallback']['id']), ('fallback', 'coverage-by-component-type'))
+        anchor = qa['fallback']['source'].split('#')[1].replace('-', ' ')
+        doc = (Path(__file__).resolve().parents[1] / qa['fallback']['source'].split('#')[0]).read_text().lower()
+        self.assertIn('#### ' + anchor, doc, 'the fallback source must name a real heading')
+        self.put('testing-strategy')
+        qa = next(e for e in self.run_cli()['entries'] if e['lane'] == 'qa' and e['name'] == 'testing-strategy')
+        self.assertEqual(qa['status'], 'resolved', 'an installed testing-strategy wins over the fallback')
+
     def test_qa_requires_pr_security_review_and_review_does_not(self):
         self.full()
         entries = self.run_cli()['entries']

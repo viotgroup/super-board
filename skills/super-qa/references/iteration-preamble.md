@@ -99,7 +99,22 @@ debugs the wrong file. Locality of failure is the whole point.
 `testing-strategy` is the reference for what a given component type is *worth*
 covering (API endpoints, data paths, frontend, infra) and what to skip (trivial
 getters, framework code, one-off scripts). Consult it for coverage judgment —
-it does not decide the layer, the ladder above does.
+it does not decide the layer, the ladder above does. When it is not installed,
+use the table below instead.
+
+#### Coverage by component type
+
+The fallback for `testing-strategy`. Cover what a change can break for a user;
+skip what only restates the framework.
+
+| Component | Worth covering | Skip |
+|---|---|---|
+| API endpoint | status and body per AC, auth and scoping refusals, validation errors | framework routing, DTO decorators alone |
+| Domain rule / pure function | every branch the AC names, boundaries, empty and invalid input | trivial getters and pass-through wrappers |
+| Data path (query, migration, sync) | the rows written or read, idempotency on a re-run, the old shape still read | ORM internals, generated SQL text |
+| Frontend | what the user sees and can do per AC, empty/loading/error states | styling details, third-party component internals |
+| Integration with an external system | the contract at your boundary, with a fake | the live third party (file a contract gap) |
+| Script / one-off / infra config | nothing unless it ships in the product path | — |
 
 **Then two checks before the test counts as done:**
 
