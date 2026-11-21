@@ -39,7 +39,7 @@ Rules, from references/config-schema.json → merge_policy / migrations:
   always_human replaces them all (`{}` turns category gating off). In migration
   files, keywords inside a `down()`/`downgrade()` rollback are ignored, and
   `delete from`/`truncate` outside it → schema (while the schema category is on).
-  Schema keywords are not searched in test files (TEST_PATHS).
+  Schema keywords are not searched in test files or QA evidence (TEST_PATHS).
 - migrations: a changed path matching migrations.globs makes this a migration
   PR. Every env in allowed_envs with a command runs (a command of "-" means the
   deploy pipeline applies it: nothing to run). target_env not in allowed_envs, or
@@ -91,11 +91,13 @@ DEFAULT_SIZE_EXCLUDE = [
     # QA evidence the pipeline itself commits (reports, logs, screenshots)
     "docs/super-board/runs/**",
 ]
-# Test code never runs against a real database, so its DROP/TRUNCATE teardown is
-# not a destructive change; these paths are skipped by the schema keyword scan.
+# Test code and QA's throwaway-DB evidence scripts never run against a real
+# database, so their DROP/TRUNCATE teardown is not a destructive change; these
+# paths are skipped by the schema keyword scan.
 TEST_PATHS = [
     "**/*.spec.*", "**/*.test.*", "**/*-spec.*", "**/test/**", "**/tests/**",
     "**/e2e/**", "**/__tests__/**", "test/**", "tests/**", "e2e/**",
+    "docs/super-board/runs/**",
 ]
 
 
