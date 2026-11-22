@@ -54,6 +54,28 @@ expect deny  guard-secrets.py "$(bash_cmd "bash .claude/bin/super-board-env-chec
 expect deny  guard-secrets.py "$(bash_cmd "bash .claude/bin/super-board-env-check.sh --file $SUB")" "env-check: substitution in args"
 expect allow guard-secrets.py "$(bash_cmd ".claude/bin/super-board-env-check.sh SENTRY_AUTH_TOKEN")" "env-check direct call"
 expect allow guard-secrets.py "$(bash_cmd "  sh /abs/path/.claude/bin/super-board-env-check.sh	--file=${D}.local K ")" "env-check sh, tab, abs path"
+# Prose that only names a secret file is data, not a read: a git/gh message, title or body, or
+# a quoted-delimiter heredoc written to a file. Anything that can still run (substitution, an
+# unquoted heredoc, a heredoc piped on or fed to an interpreter) is scanned as before.
+CR=credentials
+expect allow guard-secrets.py "$(bash_cmd "git commit -q -m \"docs: never read $D files\"")"         "commit message names dotenv"
+expect allow guard-secrets.py "$(bash_cmd "git commit -m 'chore: tools, $CR and steps'")"           "commit message says the word"
+expect allow guard-secrets.py "$(bash_cmd "gh pr create --title \"no $D reads\" --body 'see the $D note'")" "PR title and body name dotenv"
+expect allow guard-secrets.py "$(bash_cmd "gh issue comment 7 --body=\"key names via ${D}.example, never $D\"")" "--body= form"
+expect allow guard-secrets.py "$(bash_cmd "cat > /tmp/body.md <<'EOF'${NL}No reading $D files.${NL}EOF${NL}gh pr create --body-file /tmp/body.md")" "quoted heredoc written to a file"
+expect allow guard-secrets.py "$(bash_cmd "cd x && tee notes.md <<\"EOF\"${NL}$CR live elsewhere${NL}EOF")" "quoted heredoc into tee after cd"
+expect deny  guard-secrets.py "$(bash_cmd "git commit -m \"$SUB\"")"                                 "commit message with substitution"
+expect deny  guard-secrets.py "$(bash_cmd "git commit -m \"x\`cat $D\`\"")"                         "commit message with backticks"
+expect deny  guard-secrets.py "$(bash_cmd "gh pr create --title x --body-file $D")"                 "--body-file is a path, still scanned"
+expect deny  guard-secrets.py "$(bash_cmd "git commit -m 'ok'; cat $D")"                            "a message, then a real read"
+expect deny  guard-secrets.py "$(bash_cmd "grep -m 1 KEY $D")"                                      "-m outside git is not a message"
+expect deny  guard-secrets.py "$(bash_cmd "cat -m '$D'")"                                           "message flag on a non-git command"
+expect deny  guard-secrets.py "$(bash_cmd "cat <<EOF${NL}$SUB${NL}EOF")"                            "unquoted heredoc expands"
+expect deny  guard-secrets.py "$(bash_cmd "bash <<'EOF'${NL}cat $D${NL}EOF")"                       "quoted heredoc fed to a shell"
+expect deny  guard-secrets.py "$(bash_cmd "python3 - <<'EOF'${NL}open('$D').read()${NL}EOF")"      "quoted heredoc fed to python"
+expect deny  guard-secrets.py "$(bash_cmd "cat <<'EOF' | sh${NL}cat $D${NL}EOF")"                   "quoted heredoc piped to a shell"
+expect deny  guard-secrets.py "$(bash_cmd "cat > x <<'EOF'${NL}ok${NL}EOF${NL}cat $D")"             "a real read after the heredoc"
+expect deny  guard-secrets.py "$(bash_cmd "git commit -m \"unclosed $D")"                           "unbalanced quotes scan everything"
 
 # ---- guard-key-literals -----------------------------------------------------
 ANT="sk-""ant-$(printf 'a%.0s' $(seq 1 30))"
