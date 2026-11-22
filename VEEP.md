@@ -53,6 +53,10 @@ Ported from `viotgroup/ecms` (each commit names its ECMS source):
   cards close without a fresh review; a person can release a 🙋 card by moving it to Ready.
 - Skills: QA's `testing-strategy` (no published source) falls back to a coverage table;
   skills a Claude plugin lists in `plugin.json` (nested, like `mattpocock-skills`) are found.
+- Writing: config `commit_style: "host"` keeps the repo's own commit format for subjects and
+  PR titles.
+- Guards: guard-secrets no longer denies prose that only names a secret file (git/gh
+  messages, quoted heredocs written to a file); anything that can still run is scanned.
 - Host: each wave checks `gh auth status` and keeps a macOS host awake.
 - Lanes: each lane gets its own scratchpad folder; builders stamp migrations with
   `Date.now()`.
