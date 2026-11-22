@@ -29,7 +29,7 @@ Board: Backlog · Ready · Building · QA · Review · Blocked · Done. Labels r
 
 | Thing | Format → `.claude/skills/super-board/references/writing-standard.md` |
 |---|---|
-| Commit, PR title | `<emoji> [type] scope: subject` + short bullets · ✨ feat 🐛 fix 🔧 chore ♻️ refactor 🧪 test 📝 docs |
+| Commit, PR title | `<emoji> [type] scope: subject` + short bullets · ✨ feat 🐛 fix 🔧 chore ♻️ refactor 🧪 test 📝 docs · config `commit_style: "host"` → this repo's own commit format instead |
 | PR body | blocks: status · Problem · Solution · AC + proof · history · Before\|After · Risk — `super-board-pr-body.sh` |
 | Ticket | Problem · Context · Fix · AC · Risk · Blocked by → `docs/agents/issue-tracker.md` |
 | Comment | `[role] [label] status` · Did · ✅ Done · ❌ Not done · Next · ≤ 8 lines |

@@ -65,6 +65,13 @@ Machine-read subjects (scripts grep these exact shapes):
 | super-qa iteration done | `🧪 [test] super-qa: iter <N> (<X> bugs, <Y> items, <Z> PRs opened)` |
 | super-qa checkpoint | `🚧 [wip] super-qa: iter <N> — <one-liner>` |
 
+**Host commit style.** When the config sets `commit_style: "host"`, commit subjects and PR
+titles follow the format the host repo's `AGENTS.md`, `CLAUDE.md` or `CONTRIBUTING.md` defines,
+for example conventional commits (`fix(backend): show a size error`). The rest of this section
+still applies: 1–4 bullets, `Closes #N`, trailers. The two loop subjects take their conventional
+form, which the dispatcher also reads: `chore(loop): close #<N> — <summary>` and
+`wip(loop): #<N> partial — <slice or reason>`.
+
 **Squash merge.** Subject = the PR title. Body = the PR's commit bullets, deduplicated, plus
 `Closes #N`. The merge gate takes them as `--subject` and `--body-file`.
 
@@ -81,7 +88,8 @@ Closes #790
 
 ## 2 · PR
 
-**Title** = commit subject format: `🐛 [fix] receipts: show a size error over 10 MB`.
+**Title** = commit subject format: `🐛 [fix] receipts: show a size error over 10 MB` (the host's
+format under `commit_style: "host"`, § 1).
 
 **Body** = marker blocks, in this order. A lane rewrites only its own blocks, with
 `.claude/bin/super-board-pr-body.sh` (it refuses when the PR head moved since you read it).

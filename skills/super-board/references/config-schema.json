@@ -84,6 +84,12 @@
   // `main` appears to be production.
   "base_branch": "main",
 
+  // Commit subjects and PR titles. "super-board" (default): `<emoji> [type] scope: subject`
+  // (writing-standard.md § 1). "host": the format the host repo's AGENTS.md, CLAUDE.md or
+  // CONTRIBUTING.md defines, e.g. conventional commits `fix(backend): …`; bullets, `Closes #N`,
+  // trailers and the loop subjects (in their conventional form) still apply.
+  "commit_style": "super-board",
+
   // IANA time zone for the times super-board writes (the PR body's Iteration
   // history, via `super-board-pr-body.sh --time`). GitHub markdown cannot run
   // JavaScript, so a time is fixed when a lane writes it — in this zone.

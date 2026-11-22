@@ -108,9 +108,34 @@ def test_dispatcher_greps_the_standard_loop_subjects():
     assert grep(close_pat, "chore(loop): close #42 — legacy branch")
 
 
+def test_host_commit_style_is_documented_end_to_end():
+    # commit_style "host": subjects and PR titles follow the host repo's own format.
+    schema = (REF / "config-schema.json").read_text(encoding="utf-8")
+    assert re.search(r'^\s*"commit_style": "super-board",', schema, flags=re.M), "config-schema lacks commit_style"
+    section = STANDARD.split("## 1 · Commit", 1)[1].split("## 2 ·", 1)[0]
+    assert "commit_style" in section and '"host"' in section, "writing-standard § 1 lacks the host style"
+    shapes = re.findall(r"`((?:chore|wip)\(loop\)[^`]*)`", section)
+    assert len(shapes) == 2, f"host style must name both loop subjects, found {shapes}"
+    block = (REF / "agents-md-block.md").read_text(encoding="utf-8")
+    assert "commit_style" in block, "AGENTS.md block must say a host style overrides the emoji format"
+    wave = (ROOT / "workflows" / "super-board-wave.js").read_text(encoding="utf-8")
+    assert "commit_style" in wave, "lane prompts must name commit_style"
+    # The legacy dispatcher still recognises the host-style loop subjects.
+    src = (ROOT / "skills" / "super-build" / "scripts" / "super-build-dispatch.sh").read_text(encoding="utf-8")
+    close_pat, wip_pat = (p.replace("$N", "42").replace("\\\\", "\\")
+                          for p in re.findall(r'grep -E "\^\[0-9a-f\]\+ (.*?)" \| head', src))
+    for pat, shape in ((close_pat, shapes[0]), (wip_pat, shapes[1])):
+        subject = shape.replace("<N>", "42").split(" — ")[0] + " — x"
+        r = subprocess.run(["grep", "-E", "^[0-9a-f]+ " + pat], input=f"abc123 {subject}\n",
+                           capture_output=True, text=True)
+        assert r.returncode == 0, f"dispatcher does not accept the documented host subject: {subject}"
+
+
 def test_no_old_commit_shapes_in_templates():
     old = re.compile(r"chore\(loop\)|wip\(loop\)|fix\(super-qa\)|feat\(super-qa\)|refine\(\$?\{?[a-z<]")
-    allowed = {"super-build-dispatch.sh"}  # documents and still accepts the legacy shapes
+    # super-build-dispatch.sh still accepts the legacy shapes; writing-standard.md names them
+    # as the loop subjects under commit_style "host".
+    allowed = {"super-build-dispatch.sh", "writing-standard.md"}
     for p in list((ROOT / "skills").rglob("*.md")) + list((ROOT / "skills").rglob("*.sh")) + list((ROOT / "workflows").glob("*.js")):
         if p.name in allowed or "visual" in p.parts:
             continue

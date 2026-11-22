@@ -159,6 +159,7 @@ const lanePrompt = (lane, card) => [
   SCRATCH(`issue-${card.number}-${lane}`),
   BOARD_IO(),
   `Commits, PR title, PR body blocks, comments: .claude/skills/super-board/references/writing-standard.md. Rewrite only your own PR body blocks, with .claude/bin/super-board-pr-body.sh.`,
+  `Commit subjects and PR titles: if ${input.configPath} sets commit_style "host", use the host repo's own commit format from its AGENTS.md (writing-standard.md § 1 → Host commit style).`,
   ...(lane === 'review' ? REVIEW_MEMORY : []),
   ...(lane === 'review' ? [...priorLines(card.prior), ...truthLines(card.truth)] : []),
   ...(lane === 'qa' && card.status === 'Ready'
