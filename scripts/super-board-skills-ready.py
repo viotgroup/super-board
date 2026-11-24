@@ -38,7 +38,10 @@ REGISTRY = {
                                    'resolving-merge-conflicts', 'domain-modeling', 'ask-matt', 'to-spec', 'to-tickets', 'implement-spec', 'improve-codebase-architecture'],
                 'ponytail': ['ponytail', 'ponytail-review']},
     # testing-strategy has no published source (upstream lists it as external, not installed).
+    # resolving-merge-conflicts is missing from some mattpocock-skills releases (1.3.2).
     'fallbacks': {'ponytail:ponytail': {'id': 'simplest-solution-first', 'source': POLICY + '#simplest-solution-first'},
+                  'mattpocock-skills:resolving-merge-conflicts': {'id': 'merge-conflict-procedure',
+                                                                  'source': POLICY + '#resolve-a-merge-conflict'},
                   'testing-strategy': {'id': 'coverage-by-component-type',
                                        'source': 'skills/super-qa/references/iteration-preamble.md#coverage-by-component-type'},
                   'ponytail:ponytail-review': {'id': 'over-engineering-ladder', 'source': 'skills/super-review/SKILL.md#over-engineering'}},

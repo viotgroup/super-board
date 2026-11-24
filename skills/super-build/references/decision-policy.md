@@ -147,6 +147,28 @@ fails, apply this fallback and carry on:
 Ponytail picks *how little* to write. It never overrides an acceptance
 criterion, the `tdd` red test, or the decision ladder below.
 
+## Resolve a merge conflict
+
+Invoke `mattpocock-skills:resolving-merge-conflicts` on an in-progress conflict.
+The skill is not published in every `mattpocock-skills` release; if it is not
+installed, apply this fallback and carry on:
+
+1. Bring the base in with `git merge origin/<base>`. Never rebase or force push a
+   branch that is already pushed.
+2. For each conflicted file, read both sides and the common base
+   (`git diff`, `git log --merge -p -- <file>`) and name what each side meant to do.
+3. Keep both intents. A list both sides edited (script chains, imports,
+   registries, routes) takes the union, minus only what this branch deliberately
+   removed or moved, so a line the base added is never lost.
+4. Never take a whole side (`--ours`, `--theirs`) unless the other side's change is
+   fully superseded; say so in the merge commit.
+5. Regenerate lockfiles with the project's pinned package manager; never
+   hand-merge one.
+6. `git diff --check` shows no conflict markers, then the full verify commands
+   pass, then commit the merge naming each conflicted file and the choice made.
+7. A hunk where both sides change the same behaviour needs a product decision:
+   abort the merge and block the card ❓ instead of guessing.
+
 ## The decision ladder
 
 Most forks in a worker run are not gray at all — they are already settled by

@@ -52,7 +52,9 @@ Ported from `viotgroup/ecms` (each commit names its ECMS source):
 - Board: cards missing from `Issue.projectItems` are found on the board; human-merged
   cards close without a fresh review; a person can release a 🙋 card by moving it to Ready.
 - Skills: QA's `testing-strategy` (no published source) falls back to a coverage table;
-  skills a Claude plugin lists in `plugin.json` (nested, like `mattpocock-skills`) are found.
+  the builder's `resolving-merge-conflicts` (missing from `mattpocock-skills` 1.3.2) falls back
+  to a merge procedure, so a conflicting branch no longer halts the run; skills a Claude
+  plugin lists in `plugin.json` (nested, like `mattpocock-skills`) are found.
 - Writing: config `commit_style: "host"` keeps the repo's own commit format for subjects and
   PR titles.
 - Guards: guard-secrets no longer denies prose that only names a secret file (git/gh

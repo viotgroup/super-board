@@ -65,6 +65,20 @@ class Readiness(unittest.TestCase):
         qa = next(e for e in self.run_cli()['entries'] if e['lane'] == 'qa' and e['name'] == 'testing-strategy')
         self.assertEqual(qa['status'], 'resolved', 'an installed testing-strategy wins over the fallback')
 
+    def test_merge_conflict_skill_falls_back_when_required(self):
+        self.full()
+        name = 'mattpocock-skills:resolving-merge-conflicts'
+        result = self.run_cli(extra=('--lane', 'build', '--require', name))
+        self.assertTrue(result['ready'], 'a builder hitting a conflict must not halt on a skill mattpocock-skills 1.3.2 lacks')
+        entry = next(e for e in result['entries'] if e['name'] == name)
+        self.assertEqual((entry['status'], entry['fallback']['id']), ('fallback', 'merge-conflict-procedure'))
+        path, anchor = entry['fallback']['source'].split('#')
+        doc = (KIT / path).read_text().lower()
+        self.assertIn('## ' + anchor.replace('-', ' '), doc, 'the fallback source must name a real heading')
+        self.put('resolving-merge-conflicts')
+        entry = next(e for e in self.run_cli(extra=('--lane', 'build', '--require', name))['entries'] if e['name'] == name)
+        self.assertEqual(entry['status'], 'resolved', 'an installed skill wins over the fallback')
+
     def test_qa_requires_pr_security_review_and_review_does_not(self):
         self.full()
         entries = self.run_cli()['entries']
